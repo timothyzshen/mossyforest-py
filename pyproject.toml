@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "shapleyforest"
+version = "0.1.0"
+description = "Network-aware stable feature selection via Shapley-augmented random forests"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+authors = [
+    { name = "Timothy Shen", email = "tzshen@g.ucla.edu" }
+]
+keywords = [
+    "feature selection", "random forest", "SHAP", "Shapley",
+    "stability selection", "WGCNA", "bioinformatics", "genomics"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=1.5",
+    "scikit-learn>=1.2",
+    "shap>=0.42",
+    "matplotlib>=3.6",
+    "seaborn>=0.12",
+    "scipy>=1.10",
+    "joblib>=1.2",
+    "PyWGCNA>=2.0",
+]
+
+[project.optional-dependencies]
+fast = [
+    "numba>=0.57",          # JIT-compiled mean |SHAP| reduction (use_numba=True)
+    "fasttreeshap>=0.1.6",  # faster exact TreeSHAP (shap_backend="fasttreeshap")
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "ruff",
+    "black",
+    "numba>=0.57",
+]
+
+[project.urls]
+Homepage = "https://github.com/tzshen/shapleyforest_py"
+Issues   = "https://github.com/tzshen/shapleyforest_py/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shapleyforest"]
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "I"]
+
+[tool.black]
+line-length = 88
