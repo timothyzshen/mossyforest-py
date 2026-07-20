@@ -161,6 +161,45 @@ def test_threshold_mode_fdr_runs(block_data):
         assert (sd["threshold"] == 0.10).any()
 
 
+def test_shap_direction_recovers_sign(block_data):
+    """
+    Direction should recover the sign of a feature's effect: features positively
+    associated with the outcome get direction +1, negatively-associated get -1.
+    """
+    import numpy as np
+    rng = np.random.default_rng(1)
+    n = 250
+    a = rng.standard_normal(n)   # positive effect
+    b = rng.standard_normal(n)   # negative effect
+    Xd = pd.DataFrame({
+        **{f"pos{i}": a + rng.standard_normal(n) * 0.3 for i in range(6)},
+        **{f"neg{i}": b + rng.standard_normal(n) * 0.3 for i in range(6)},
+        **{f"noise{i}": rng.standard_normal(n) for i in range(6)},
+    })
+    y = ((2 * a - 2 * b) > 0).astype(int)
+    mm = {c: ("A" if c.startswith("pos") else "B" if c.startswith("neg")
+              else "independent") for c in Xd.columns}
+    sc = screen_control(drop_fraction=0.3, keep_fraction=0.6, min_ntree=60)
+    sl = select_control(n_boots=15, min_ntree=60, pi_thr=0.3,
+                        shadow_mode="split", indep_modules=["independent"])
+    res = sf(Xd, y, module_membership=mm, screen_params=sc, select_params=sl,
+             final_ntree=60, verbose=0, seed=3)
+    df = res.final_SHAP
+    assert "direction" in df.columns
+    assert "signed_importance" in df.columns
+    assert "dir_corr" in df.columns
+    # among selected features, pos* should trend +1 and neg* should trend -1
+    pos = df[df["feature_name"].str.startswith("pos")]
+    neg = df[df["feature_name"].str.startswith("neg")]
+    if len(pos) > 0:
+        assert (pos["direction"] >= 0).mean() > 0.5
+    if len(neg) > 0:
+        assert (neg["direction"] <= 0).mean() > 0.5
+    # signed_importance sign matches direction, magnitude matches mean_abs
+    np.testing.assert_allclose(
+        df["signed_importance"].abs().values, df["mean_abs_shap"].values, atol=1e-4)
+
+
 def test_threshold_mode_signtest_runs(block_data):
     """threshold_mode='signtest': own-shadow sign test + one GLOBAL FDR."""
     X, y, labels, _ = block_data

@@ -32,6 +32,7 @@ from .result import ShapleyForestResult
 from .modules import detect_modules, pick_soft_threshold
 from .plots import (
     plot_importance,
+    plot_signed_importance,
     plot_waterfall,
     plot_force,
     plot_stability,
@@ -63,6 +64,7 @@ __all__ = [
     "pick_soft_threshold",
     # plots
     "plot_importance",
+    "plot_signed_importance",
     "plot_waterfall",
     "plot_force",
     "plot_stability",

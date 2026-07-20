@@ -559,6 +559,65 @@ def plot_elbow(
     return fig
 
 
+# ── plot_signed_importance ────────────────────────────────────────────────────
+
+def plot_signed_importance(
+    result,
+    top_n: int | None = None,
+    pos_color: str = "#d6604d",
+    neg_color: str = "#4393c3",
+    ambiguous_color: str = "#bbbbbb",
+    ax: plt.Axes | None = None,
+) -> plt.Axes:
+    """
+    Diverging bar chart of signed importance = direction × mean|SHAP|.
+
+    Magnitude is mean|SHAP|; sign is the global effect direction (from the
+    Spearman correlation between each feature's value and its SHAP value).
+    Bars to the right promote the outcome, to the left suppress it. Features
+    whose direction is ambiguous (non-monotone: |Spearman| < 0.1) are greyed
+    out — for those a single direction is misleading; use a SHAP dependence
+    plot instead.
+    """
+    df = result.final_SHAP.copy()
+    if "signed_importance" not in df.columns or len(df) == 0:
+        raise ValueError("No directional SHAP data in this result (no stable features).")
+
+    df = df.reindex(df["signed_importance"].abs().sort_values().index)
+    if top_n is not None:
+        df = df.iloc[-top_n:]
+
+    colours = []
+    for _, row in df.iterrows():
+        if row.get("direction_ambiguous", False):
+            colours.append(ambiguous_color)
+        elif row["signed_importance"] >= 0:
+            colours.append(pos_color)
+        else:
+            colours.append(neg_color)
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(8, max(4, len(df) * 0.35)))
+
+    ax.barh(range(len(df)), df["signed_importance"], color=colours)
+    ax.axvline(0, color="black", linewidth=0.8)
+    ax.set_yticks(range(len(df)))
+    ax.set_yticklabels(df["feature_name"])
+    ax.set_xlabel("Signed importance  (direction × mean |SHAP|)")
+    ax.set_title("Directional feature importance", fontsize=14)
+
+    # legend
+    from matplotlib.patches import Patch
+    ax.legend(handles=[
+        Patch(color=pos_color, label="promotes outcome (+)"),
+        Patch(color=neg_color, label="suppresses outcome (−)"),
+        Patch(color=ambiguous_color, label="ambiguous (non-monotone)"),
+    ], fontsize=8, loc="lower right")
+    plt.tight_layout()
+    plt.show()
+    return ax
+
+
 # ── plot_soft_threshold ───────────────────────────────────────────────────────
 
 def plot_soft_threshold(

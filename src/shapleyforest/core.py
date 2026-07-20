@@ -86,14 +86,47 @@ def _build_stability_data(pool_stability: list) -> pd.DataFrame | None:
     return pd.DataFrame(rows)
 
 
+def _shap_direction(feature_values: np.ndarray, shap_matrix: np.ndarray,
+                    ambiguity_thresh: float = 0.1) -> dict:
+    """
+    Global effect direction per feature from the feature-value ↔ SHAP relationship.
+
+    Because mean signed SHAP ≈ 0 (contributions cancel), direction lives in HOW
+    a feature's SHAP tracks its value. We use the Spearman correlation between
+    x_j and phi_j (rank-based → captures monotone direction without assuming
+    linearity):
+
+        dir_corr_j = spearman(x_j, phi_j)
+        direction_j = sign(dir_corr_j)          (+1 promotes, -1 suppresses)
+        ambiguous_j = |dir_corr_j| < ambiguity_thresh   (non-monotone / unclear;
+                       a single direction is misleading — use a dependence plot)
+
+    Returns arrays: dir_corr, direction, ambiguous.
+    """
+    from scipy.stats import spearmanr
+    p = shap_matrix.shape[1]
+    dir_corr = np.zeros(p, dtype=np.float64)
+    for j in range(p):
+        xj, sj = feature_values[:, j], shap_matrix[:, j]
+        if np.ptp(xj) == 0 or np.ptp(sj) == 0:   # constant → undefined
+            dir_corr[j] = 0.0
+            continue
+        rho, _ = spearmanr(xj, sj)
+        dir_corr[j] = 0.0 if np.isnan(rho) else rho
+    direction = np.sign(dir_corr).astype(int)
+    ambiguous = np.abs(dir_corr) < ambiguity_thresh
+    return {"dir_corr": dir_corr, "direction": direction, "ambiguous": ambiguous}
+
+
 def _build_final_shap_df(
     stable_features: list,
     shap_matrix: np.ndarray,
+    feature_values: np.ndarray,
     final_vims: list,
     stab_freq: list,
     module_membership_map: dict,
 ) -> pd.DataFrame:
-    """Build the final_SHAP DataFrame matching R's structure (with CIs)."""
+    """Build the final_SHAP DataFrame matching R's structure (with CIs + direction)."""
     n_obs = shap_matrix.shape[0]
     feat_ord = stable_features
 
@@ -119,6 +152,14 @@ def _build_final_shap_df(
         df["ci_lower_signed"]  = np.round(mean_signed - 1.96 * se_signed, 4)
         df["ci_upper_signed"]  = np.round(mean_signed + 1.96 * se_signed, 4)
         df["stability_freq"]   = np.round(stab_freq, 4)
+
+        # ── global effect direction (feature-value ↔ SHAP correlation) ────────
+        d = _shap_direction(feature_values, shap_matrix)
+        df["direction"]         = d["direction"]                    # +1 / -1 / 0
+        df["dir_corr"]          = np.round(d["dir_corr"], 4)        # Spearman ρ
+        # signed importance = direction × magnitude (for a diverging-bar report)
+        df["signed_importance"] = np.round(d["direction"] * mean_abs, 4)
+        df["direction_ambiguous"] = d["ambiguous"]                 # non-monotone flag
 
     return df.reset_index(drop=True)
 
@@ -396,10 +437,16 @@ def sf(
         for i in range(len(select_result["selection_list_feats"]))
     ]
 
-    # ── final_SHAP DataFrame (with CIs) ───────────────────────────────────────
+    # ── final_SHAP DataFrame (with CIs + direction) ───────────────────────────
+    # feature values aligned with the SHAP matrix columns (for the direction test)
+    stable_value_mat = (
+        X_arr[:, [feature_names.index(f) for f in stable_features]]
+        if len(stable_features) > 0 else np.zeros((X_arr.shape[0], 0))
+    )
     final_shap_df = _build_final_shap_df(
         stable_features  = stable_features,
         shap_matrix      = shap_matrix,
+        feature_values   = stable_value_mat,
         final_vims       = final_vims,
         stab_freq        = stab_freq,
         module_membership_map = mm_map,
