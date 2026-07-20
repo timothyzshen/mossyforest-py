@@ -64,6 +64,7 @@ def test_select_control_defaults():
     assert sl.n_boots           == 50
     assert sl.pi_thr            == 0.60
     assert sl.pi_thr_indep      is None
+    assert sl.threshold_mode    == "pi_thr"
     assert sl.shadow_percentile == 95.0
     assert sl.use_dml_residual  is False
     assert sl.dml_n_folds       == 5
@@ -84,6 +85,44 @@ def test_select_control_bad_shadow_mode():
 def test_select_control_bad_dml_scope():
     with pytest.raises(ValueError, match="dml_scope"):
         select_control(dml_scope="bad")
+
+
+def test_select_control_bad_threshold_mode():
+    with pytest.raises(ValueError, match="threshold_mode"):
+        select_control(threshold_mode="bad")
+
+
+def test_select_control_bad_fdr_q():
+    with pytest.raises(ValueError, match="fdr_q"):
+        select_control(fdr_q=1.5)
+
+
+def test_bh_fdr_select_basic():
+    from shapleyforest.shadow import bh_fdr_select
+    import numpy as np
+    # clear signal (tiny p) + noise (uniform-ish); q=0.1 should keep the signal
+    pvals = np.array([0.001, 0.002, 0.9, 0.8, 0.95])
+    sel = bh_fdr_select(pvals, q=0.1)
+    assert sel[0] and sel[1]
+    assert not sel[2:].any()
+    # nothing significant → nothing selected
+    none_sel = bh_fdr_select(np.array([0.5, 0.6, 0.7]), q=0.1)
+    assert not none_sel.any()
+
+
+def test_bh_vs_by_conservatism():
+    """Benjamini–Yekutieli must never select more than Benjamini–Hochberg."""
+    from shapleyforest.shadow import bh_fdr_select
+    import numpy as np
+    pvals = np.array([0.001, 0.01, 0.02, 0.04, 0.2, 0.5, 0.9])
+    bh = bh_fdr_select(pvals, q=0.1, method="bh")
+    by = bh_fdr_select(pvals, q=0.1, method="by")
+    assert by.sum() <= bh.sum()
+
+
+def test_select_control_bad_fdr_method():
+    with pytest.raises(ValueError, match="fdr_method"):
+        select_control(fdr_method="bad")
 
 
 # ── ShapleyForest instantiation ───────────────────────────────────────────────
@@ -257,7 +296,7 @@ def test_stability_tracker_reset():
 def test_boruta_shadow_stability_returns_all_features(classification_data):
     X, y = classification_data
     feat_names = [f"X{i}" for i in range(X.shape[1])]
-    names_sort, freqs_sort = boruta_shadow_stability(
+    names_sort, freqs_sort, pvals_sort, signtest_sort = boruta_shadow_stability(
         X_pool=X, feat_names=feat_names, y=y.astype(int),
         n_boots=5, mtry_factor=1.0, ntree_factor=1, min_ntree=30,
         nodesize=1, classification=True, seed=0, n_jobs=1,
@@ -265,7 +304,11 @@ def test_boruta_shadow_stability_returns_all_features(classification_data):
     )
     assert len(names_sort) == X.shape[1]
     assert len(freqs_sort) == X.shape[1]
+    assert len(pvals_sort) == X.shape[1]
+    assert len(signtest_sort) == X.shape[1]
     assert all(0.0 <= f <= 1.0 for f in freqs_sort)
+    assert all(0.0 <= p <= 1.0 for p in pvals_sort)
+    assert all(0.0 <= p <= 1.0 for p in signtest_sort)
     # frequencies should be in descending order
     assert all(freqs_sort[i] >= freqs_sort[i+1] for i in range(len(freqs_sort)-1))
 

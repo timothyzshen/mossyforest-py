@@ -125,6 +125,70 @@ def test_split_mode_shap_ci_columns(block_data):
 
 # ── Within-module shadow mode ─────────────────────────────────────────────────
 
+def test_threshold_mode_elbow_runs(block_data):
+    """threshold_mode='elbow' (Alternative A) applies the elbow rule to BOTH pools."""
+    X, y, labels, _ = block_data
+    sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
+    sl = select_control(n_boots=8, min_ntree=30, pi_thr=0.4,
+                        shadow_mode="split", indep_modules=["independent"],
+                        threshold_mode="elbow")
+    result = sf(X, y, module_membership=labels,
+                screen_params=sc, select_params=sl,
+                final_ntree=30, verbose=0, seed=5)
+    assert result is not None
+    # under elbow mode the CORRELATED pool must carry an elbow_rank (it's None
+    # in the default pi_thr mode), proving the unified rule is applied to it.
+    sd = result.stability_data
+    if sd is not None and (sd["pool"] == "corr").any():
+        corr_elbow = sd.loc[sd["pool"] == "corr", "elbow_rank"].dropna()
+        assert len(corr_elbow) > 0, "corr pool should have an elbow_rank under elbow mode"
+
+
+def test_threshold_mode_fdr_runs(block_data):
+    """threshold_mode='fdr' selects via empirical p-value + BH-FDR on both pools."""
+    X, y, labels, _ = block_data
+    sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
+    sl = select_control(n_boots=10, min_ntree=30,
+                        shadow_mode="split", indep_modules=["independent"],
+                        threshold_mode="fdr", fdr_q=0.10)
+    result = sf(X, y, module_membership=labels,
+                screen_params=sc, select_params=sl,
+                final_ntree=30, verbose=0, seed=5)
+    assert result is not None
+    # stability_data threshold column should record the FDR target for each pool
+    sd = result.stability_data
+    if sd is not None and len(sd) > 0:
+        assert (sd["threshold"] == 0.10).any()
+
+
+def test_threshold_mode_signtest_runs(block_data):
+    """threshold_mode='signtest': own-shadow sign test + one GLOBAL FDR."""
+    X, y, labels, _ = block_data
+    sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
+    sl = select_control(n_boots=12, min_ntree=30,
+                        shadow_mode="split", indep_modules=["independent"],
+                        threshold_mode="signtest", fdr_q=0.10)
+    result = sf(X, y, module_membership=labels,
+                screen_params=sc, select_params=sl,
+                final_ntree=30, verbose=0, seed=5)
+    assert result is not None
+    for f in result.stability_freq:
+        assert 0.0 <= result.stability_freq[f] <= 1.0
+
+
+def test_threshold_mode_signtest_by(block_data):
+    """signtest with Benjamini–Yekutieli correction (arbitrary dependence)."""
+    X, y, labels, _ = block_data
+    sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
+    sl = select_control(n_boots=12, min_ntree=30,
+                        shadow_mode="split", indep_modules=["independent"],
+                        threshold_mode="signtest", fdr_q=0.10, fdr_method="by")
+    result = sf(X, y, module_membership=labels,
+                screen_params=sc, select_params=sl,
+                final_ntree=30, verbose=0, seed=5)
+    assert result is not None
+
+
 def test_within_module_mode_runs(block_data):
     X, y, labels, _ = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
