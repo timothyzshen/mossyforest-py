@@ -70,9 +70,35 @@ class select_control:
     n_boots : int
         Bootstrap replicates for shadow stability. Default 50.
     pi_thr : float
-        Stability frequency threshold for the corr pool. Default 0.60.
+        Stability frequency threshold for the corr pool (used when
+        threshold_mode="pi_thr"). Default 0.60.
     pi_thr_indep : float or None
         Threshold for the ind pool. None (default) = automatic elbow detection.
+    threshold_mode : str
+        How the per-pool selection cutoff is chosen.
+        "pi_thr" (default) — correlated pool uses the fixed pi_thr; the
+            independent pool uses elbow detection (or pi_thr_indep). This
+            matches the R package.
+        "elbow" — BOTH pools use the same adaptive elbow rule (unified
+            selection philosophy; a Python-only extension not in the R
+            package, so it breaks bit-exact R parity when enabled).
+        "fdr" — per-pool empirical-p-value + BH-FDR (target fdr_q). Each
+            feature's mean importance is tested against its own pool's shadow
+            null (Gaussian tail). Python-only extension.
+        "signtest" — the simplest level-playing-field rule: each feature races
+            its OWN matched shadow (a permutation of itself), a coin flip under
+            the null for EVERY feature. A binomial sign test gives one p-value
+            per feature on a common scale, then a SINGLE GLOBAL FDR correction
+            (fdr_q, fdr_method) across all features/pools decides selection —
+            no pool split needed. Python-only extension.
+    fdr_q : float
+        Target false-discovery rate for threshold_mode "fdr"/"signtest".
+        Default 0.10.
+    fdr_method : str
+        Multiple-testing correction for the FDR modes. "bh" (Benjamini–Hochberg,
+        valid under independence/PRDS; default) or "by" (Benjamini–Yekutieli,
+        valid under arbitrary dependence — more conservative, safer under the
+        correlated modules).
     shadow_percentile : float
         Percentile of the shadow-feature distribution used as threshold
         within each bootstrap. Default 95.
@@ -107,6 +133,9 @@ class select_control:
     n_boots: int = 50
     pi_thr: float = 0.60
     pi_thr_indep: Optional[float] = None
+    threshold_mode: str = "pi_thr"
+    fdr_q: float = 0.10
+    fdr_method: str = "bh"
     shadow_percentile: float = 95.0
     indep_modules: Optional[List[str]] = None
     use_dml_residual: bool = False
@@ -120,6 +149,13 @@ class select_control:
     def __post_init__(self):
         if self.shadow_mode not in ("split", "within_module"):
             raise ValueError("shadow_mode must be 'split' or 'within_module'")
+        if self.threshold_mode not in ("pi_thr", "elbow", "fdr", "signtest"):
+            raise ValueError(
+                "threshold_mode must be 'pi_thr', 'elbow', 'fdr', or 'signtest'")
+        if not 0 < self.fdr_q < 1:
+            raise ValueError("fdr_q must be in (0, 1)")
+        if self.fdr_method not in ("bh", "by"):
+            raise ValueError("fdr_method must be 'bh' or 'by'")
         if self.dml_scope not in ("indep", "all_modules"):
             raise ValueError("dml_scope must be 'indep' or 'all_modules'")
         if not 0 <= self.pi_thr <= 1:

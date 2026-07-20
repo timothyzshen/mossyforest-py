@@ -75,12 +75,14 @@ def detect_modules(
     if feature_names is None:
         feature_names = [f"X{i}" for i in range(n_features)]
 
-    # PyWGCNA expects genes × samples (rows = genes/features, cols = samples)
+    # PyWGCNA's geneExp is samples × genes (rows = samples, cols = genes/features).
+    # After runWGCNA(), datExpr.var is indexed by gene (feature) and carries the
+    # "moduleColors" assignment — so we must NOT transpose here.
     sample_names = [f"S{i}" for i in range(n_samples)]
     gene_expr_df = pd.DataFrame(
-        X.T,
-        index=feature_names,
-        columns=sample_names,
+        X,
+        index=sample_names,
+        columns=list(feature_names),
     )
 
     wgcna = PyWGCNA.WGCNA(
@@ -105,11 +107,20 @@ def detect_modules(
     else:
         wgcna.runWGCNA()
 
-    # Module labels live in datExpr.var after runWGCNA()
-    raw_labels = wgcna.datExpr.var["moduleColors"].values.astype(str)
+    # Module labels live in datExpr.var (indexed by feature) after runWGCNA().
+    var = wgcna.datExpr.var
+    raw = var["moduleColors"].astype(str)
+    # index by feature name so we can realign to the original column order
+    label_map = dict(zip(var.index.astype(str), raw.values))
 
-    # Recode grey (unassigned) → "independent"
-    labels = np.where(raw_labels == "grey", "independent", raw_labels)
+    # WGCNA's goodSamplesGenes can drop zero-variance / bad features; any feature
+    # not assigned a module is treated as unassigned ("grey").
+    raw_labels = np.array(
+        [label_map.get(str(f), "grey") for f in feature_names], dtype=object
+    )
+
+    # Recode grey (unassigned) → "independent" to match the R package convention.
+    labels = np.where(raw_labels == "grey", "independent", raw_labels).astype(str)
     return labels
 
 
@@ -151,10 +162,11 @@ def pick_soft_threshold(
     if feature_names is None:
         feature_names = [f"X{i}" for i in range(n_features)]
 
+    # pickSoftThreshold (dataIsExpr=True) expects samples × genes — no transpose.
     gene_expr_df = pd.DataFrame(
-        X.T,
-        index=feature_names,
-        columns=[f"S{i}" for i in range(n_samples)],
+        X,
+        index=[f"S{i}" for i in range(n_samples)],
+        columns=list(feature_names),
     )
 
     power_estimate, datout = PyWGCNA.WGCNA.pickSoftThreshold(

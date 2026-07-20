@@ -21,7 +21,7 @@ from .rfe import (
     shap_full_signed,
 )
 from .dml import cross_fit_residuals
-from .shadow import boruta_shadow_stability, apply_stable_threshold
+from .shadow import boruta_shadow_stability, apply_stable_threshold, bh_fdr_select
 from .parameters import select_control
 
 
@@ -137,6 +137,10 @@ def run_select_rfe(
     else:
         y_for_ind = y
 
+    # collects every feature's own-shadow sign-test p-value across all pools,
+    # for a single GLOBAL FDR correction when threshold_mode="signtest".
+    signtest_pval_map: dict = {}
+
     # ── helper: run shadow stability + threshold on a column subset ───────────
     def _shadow_on_cols(col_idx, label, seed_offset=0, is_indep=False, y_override=None):
         if len(col_idx) == 0:
@@ -157,7 +161,7 @@ def run_select_rfe(
             print(f"  Shadow stability on {label}: {len(col_idx)} features"
                   + (" [y=y_resid]" if using_resid else ""))
 
-        names_sort, freqs_sort = boruta_shadow_stability(
+        names_sort, freqs_sort, pvals_sort, signtest_sort = boruta_shadow_stability(
             X_pool           = X_sub,
             feat_names       = names_s,
             y                = y_arr,
@@ -179,8 +183,25 @@ def run_select_rfe(
             early_stop_check_every = sl.early_stop_check_every,
         )
         freq_map = dict(zip(names_sort, freqs_sort))
+        # stash sign-test p-values for a single GLOBAL correction after all pools
+        signtest_pval_map.update(dict(zip(names_sort, signtest_sort)))
 
-        if is_indep:
+        if sl.threshold_mode == "signtest":
+            # Selection is decided GLOBALLY after all pools run (one BH/BY over
+            # every feature's sign-test p-value). Defer here.
+            stable, threshold, elbow_rank = [], float(sl.fdr_q), None
+        elif sl.threshold_mode == "fdr":
+            # Per-pool empirical-p-value + BH-FDR against the pool's shadow null.
+            sel_mask   = bh_fdr_select(pvals_sort, sl.fdr_q, method=sl.fdr_method)
+            stable     = [f for f, m in zip(names_sort, sel_mask) if m]
+            threshold  = float(sl.fdr_q)
+            elbow_rank = None
+        elif sl.threshold_mode == "elbow":
+            # Alternative A: unified adaptive elbow rule for BOTH pools.
+            stable, threshold, elbow_rank = apply_stable_threshold(
+                names_sort, freqs_sort, sl.pi_thr, use_elbow=True, label=label,
+            )
+        elif is_indep:
             use_elbow = (sl.pi_thr_indep is None)
             thr       = sl.pi_thr_indep if not use_elbow else sl.pi_thr
             stable, threshold, elbow_rank = apply_stable_threshold(
@@ -343,6 +364,19 @@ def run_select_rfe(
         raise ValueError(
             f"shadow_mode must be 'split' or 'within_module', got '{shadow_mode}'"
         )
+
+    # ── GLOBAL sign-test FDR: one correction across ALL pools ─────────────────
+    # The own-shadow sign test puts every feature on the same null (win-rate 0.5),
+    # so the p-values are comparable across pools and a single BH/BY correction
+    # controls the FDR of the actual reported feature set (not per-stratum).
+    if sl.threshold_mode == "signtest" and signtest_pval_map:
+        feats = list(signtest_pval_map.keys())
+        pv    = np.array([signtest_pval_map[f] for f in feats], dtype=np.float64)
+        sel   = bh_fdr_select(pv, sl.fdr_q, method=sl.fdr_method)
+        stable_union = [f for f, m in zip(feats, sel) if m]
+        stable_set = set(stable_union)
+        for pdct in pool_stability:
+            pdct["selected"] = [f in stable_set for f in pdct["feature_names"]]
 
     n_stable = len(stable_union)
     if verbose:

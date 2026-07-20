@@ -43,12 +43,15 @@ from .plots import (
     plot_soft_threshold,
 )
 from .utils import check_blas, check_numba
+from .cache import clear_memory_cache
 
 __all__ = [
     # main API
     "sf",
     "wsf",
     "ShapleyForest",
+    # screening cache
+    "clear_memory_cache",
     # parameter objects
     "screen_control",
     "select_control",

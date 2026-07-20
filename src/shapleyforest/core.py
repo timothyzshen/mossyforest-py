@@ -29,6 +29,8 @@ from .screen import run_screen_rfe
 from .select import run_select_rfe
 from .result import ShapleyForestResult
 from .modules import detect_modules
+from . import cache
+from .cache import compute_screen_key, load_cached, store_cached
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -140,6 +142,7 @@ def sf(
     shap_backend: str                       = "shap",
     use_numba: bool                         = False,
     blas_threads: int | None                = None,
+    screen_cache=None,
 ) -> ShapleyForestResult:
     """
     Shapley Forest Feature Selection.
@@ -184,13 +187,24 @@ def sf(
         interactions entirely and frees the retained RF. Default True.
     shap_backend : str
         "shap" (default) or "fasttreeshap". The latter returns identical
-        values (exact mode) and is faster; requires the fasttreeshap package.
+        values (exact mode) and is faster, but requires Python <=3.11 with
+        numpy<2 / shap<0.46 (fasttreeshap's dependency pins have no Python
+        3.12+ wheels). On a modern stack keep "shap".
     use_numba : bool
         Use a Numba-JIT mean|SHAP| reduction when Numba is installed.
         Default False.
     blas_threads : int or None
         Inner BLAS/OpenMP thread cap during parallel sections. None (default)
         = auto: capped to 1 when num_processors > 1, unrestricted otherwise.
+    screen_cache : None, bool, or str/Path
+        Cache Phase-1 (screening) results, which depend only on X, y, module
+        membership, screen_params, nodesize, seed, max_modsize, and shap_backend
+        — NOT on select_params. Lets tuning / CV runs that vary only
+        select_params skip screening.
+        None/False (default) = no caching;
+        True = in-process memory cache (this Python session);
+        str/Path = on-disk cache directory (persists across sessions).
+        A cache hit returns byte-identical survivors.
 
     Returns
     -------
@@ -230,29 +244,49 @@ def sf(
     runtimes = {"Screen": np.nan, "Selection": np.nan, "Final_RF": np.nan}
 
     # ══════════════════════════════════════════════════════════════════════════
-    # Phase 1: Screening RFE
+    # Phase 1: Screening RFE  (optionally cached — independent of select_params)
     # ══════════════════════════════════════════════════════════════════════════
     if verbose >= 1:
         print("Screening ...")
 
     t0 = time.time()
-    screen_result = run_screen_rfe(
-        X_mat              = X_arr,
-        y                  = y_arr,
-        feature_names      = feature_names,
-        module_assignments = module_assign,
-        module_list        = module_list,
-        screen_params      = screen_params,
-        nodesize           = nodesize,
-        classification     = CLASSIFICATION,
-        seed               = seed,
-        n_jobs             = num_processors,
-        max_modsize        = max_modsize,
-        backend            = shap_backend,
-        use_numba          = use_numba,
-        blas_threads       = blas_threads,
-        verbose            = (verbose >= 2),
-    )
+
+    screen_result = None
+    cache_key = None
+    if screen_cache:
+        cache_key = compute_screen_key(
+            X_arr, y_arr, feature_names, module_assign, module_list,
+            screen_params, nodesize, CLASSIFICATION, seed, max_modsize, shap_backend,
+        )
+        screen_result = load_cached(cache_key, screen_cache)
+        if screen_result is not None:
+            cache.STATS["hits"] += 1
+            if verbose >= 1:
+                print("  (screening cache hit — skipping Phase 1)")
+
+    if screen_result is None:
+        if screen_cache:
+            cache.STATS["misses"] += 1
+        screen_result = run_screen_rfe(
+            X_mat              = X_arr,
+            y                  = y_arr,
+            feature_names      = feature_names,
+            module_assignments = module_assign,
+            module_list        = module_list,
+            screen_params      = screen_params,
+            nodesize           = nodesize,
+            classification     = CLASSIFICATION,
+            seed               = seed,
+            n_jobs             = num_processors,
+            max_modsize        = max_modsize,
+            backend            = shap_backend,
+            use_numba          = use_numba,
+            blas_threads       = blas_threads,
+            verbose            = (verbose >= 2),
+        )
+        if screen_cache:
+            store_cached(cache_key, screen_cache, screen_result)
+
     runtimes["Screen"] = time.time() - t0
 
     # ── build initial_screen DataFrame ────────────────────────────────────────
@@ -293,7 +327,12 @@ def sf(
             survivors_flat.append(f)
             surv_to_mod[f] = mod
 
-    survivors_flat = list(dict.fromkeys(survivors_flat))   # dedup, order preserved
+    # Order survivors in the ORIGINAL X column order to match R's sf(), which
+    # builds X_surv via `X[, names(X) %in% survivors]` (original order). Column
+    # order changes sklearn RF's mtry feature subsampling (it samples by index),
+    # so matching the order is required for exact parity with the R backend.
+    surv_set = set(survivors_flat)
+    survivors_flat = [f for f in feature_names if f in surv_set]
     X_surv = X_arr[:, [feature_names.index(f) for f in survivors_flat]]
 
     if verbose >= 1:
@@ -459,6 +498,7 @@ def wsf(
     shap_backend: str                    = "shap",
     use_numba: bool                      = False,
     blas_threads: int | None             = None,
+    screen_cache=None,
 ) -> ShapleyForestResult:
     """
     Shapley Forest with WGCNA Module Detection.
@@ -521,6 +561,7 @@ def wsf(
         shap_backend         = shap_backend,
         use_numba            = use_numba,
         blas_threads         = blas_threads,
+        screen_cache         = screen_cache,
     )
 
     result.WGCNA_object = module_labels
@@ -581,6 +622,7 @@ class ShapleyForest(BaseEstimator, TransformerMixin):
         shap_backend: str                    = "shap",
         use_numba: bool                      = False,
         blas_threads: int | None             = None,
+        screen_cache=None,
     ) -> None:
         self.screen_params        = screen_params
         self.select_params        = select_params
@@ -595,6 +637,7 @@ class ShapleyForest(BaseEstimator, TransformerMixin):
         self.shap_backend         = shap_backend
         self.use_numba            = use_numba
         self.blas_threads         = blas_threads
+        self.screen_cache         = screen_cache
 
     def fit(self, X, y, module_membership=None) -> "ShapleyForest":
         """
@@ -630,6 +673,7 @@ class ShapleyForest(BaseEstimator, TransformerMixin):
             shap_backend         = self.shap_backend,
             use_numba            = self.use_numba,
             blas_threads         = self.blas_threads,
+            screen_cache         = self.screen_cache,
         )
 
         # sklearn-standard attributes

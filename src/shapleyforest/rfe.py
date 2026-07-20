@@ -16,14 +16,19 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
 # ── Optional Numba acceleration ───────────────────────────────────────────────
 try:
-    from numba import njit, prange
+    from numba import njit
 
-    @njit(parallel=True, cache=True)
+    # NOTE: serial njit (no parallel=True). The bootstrap loop is already
+    # parallelized with joblib threads; numba's default workqueue threading
+    # layer is NOT threadsafe, so an inner parallel njit called from multiple
+    # threads crashes ("workqueue threading layer is not threadsafe").
+    # A serial kernel is safe under nested threading and the reduction is tiny.
+    @njit(cache=True)
     def _mean_abs_axis0_numba(arr):
-        """Mean absolute value along axis 0 — parallel over columns."""
+        """Mean absolute value along axis 0 (serial; threadsafe to call)."""
         n, p = arr.shape
         out = np.empty(p, dtype=np.float64)
-        for j in prange(p):
+        for j in range(p):
             s = 0.0
             for i in range(n):
                 v = arr[i, j]
@@ -56,6 +61,11 @@ def _tree_explainer(rf, backend: str = "shap"):
     backend="fasttreeshap"  → fasttreeshap.TreeExplainer in exact mode
                               (algorithm="v2"), which returns identical values
                               to shap but is faster. Requires fasttreeshap.
+
+    Compatibility note: fasttreeshap pins shap<0.46 → numpy<2, a legacy stack
+    with no wheels for Python >=3.12. It is therefore only usable on Python
+    <=3.11 with numpy<2 / shap<0.46. On a modern stack the import below fails
+    with a clear message and you should keep the default backend="shap".
     """
     if backend == "fasttreeshap":
         try:
@@ -63,7 +73,9 @@ def _tree_explainer(rf, backend: str = "shap"):
         except ImportError as e:   # pragma: no cover - optional dep
             raise ImportError(
                 "shap_backend='fasttreeshap' requires the fasttreeshap package.\n"
-                "Install with: pip install fasttreeshap   (or pip install shapleyforest[fast])"
+                "Install with: pip install fasttreeshap   (or pip install shapleyforest[fast])\n"
+                "NOTE: fasttreeshap needs shap<0.46 + numpy<2, which require "
+                "Python <=3.11. On Python 3.12+ keep the default shap_backend='shap'."
             ) from e
         return fasttreeshap.TreeExplainer(rf, algorithm="v2", n_jobs=1)
     import shap as _shap

@@ -41,7 +41,12 @@ dependencies = [
 [project.optional-dependencies]
 fast = [
     "numba>=0.57",          # JIT-compiled mean |SHAP| reduction (use_numba=True)
-    "fasttreeshap>=0.1.6",  # faster exact TreeSHAP (shap_backend="fasttreeshap")
+    # faster exact TreeSHAP (shap_backend="fasttreeshap").
+    # NOTE: fasttreeshap pins shap<0.46, which in turn requires numpy<2; that
+    # legacy stack has no wheels for Python >=3.12. The environment marker below
+    # therefore restricts it to Python <3.12. On Python 3.12+ use the default
+    # shap_backend="shap" (the fasttreeshap path raises a clear ImportError).
+    "fasttreeshap>=0.1.6; python_version < '3.12'",
 ]
 dev = [
     "pytest>=7.0",
@@ -64,3 +69,9 @@ select = ["E", "F", "I"]
 
 [tool.black]
 line-length = 88
+
+[tool.pytest.ini_options]
+markers = [
+    "wgcna: tests that run real PyWGCNA module detection (slower)",
+    "parity: bit-exact parity vs the R package backend (needs it on disk)",
+]

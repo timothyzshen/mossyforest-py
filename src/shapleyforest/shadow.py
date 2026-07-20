@@ -112,6 +112,35 @@ def apply_stable_threshold(
         return stable, thr, None
 
 
+def bh_fdr_select(pvals, q: float, method: str = "bh") -> np.ndarray:
+    """
+    FDR selection at level q.
+
+    method="bh" — Benjamini–Hochberg: reject up to the last p_(i) <= q·i/m.
+                  Valid under independence / PRDS (positive dependence).
+    method="by" — Benjamini–Yekutieli: same, with q scaled by 1/Σ(1/i). Valid
+                  under ARBITRARY dependence (more conservative). Use when the
+                  correlated modules make positive dependence unsafe to assume.
+
+    Returns a boolean mask aligned with `pvals`.
+    """
+    p = np.asarray(pvals, dtype=np.float64)
+    m = len(p)
+    if m == 0:
+        return np.zeros(0, dtype=bool)
+    qq = q
+    if method == "by":
+        qq = q / float(np.sum(1.0 / np.arange(1, m + 1)))
+    order  = np.argsort(p)
+    ranked = p[order]
+    line   = qq * (np.arange(1, m + 1) / m)
+    below  = ranked <= line
+    if not below.any():
+        return np.zeros(m, dtype=bool)
+    cutoff = ranked[np.max(np.where(below)[0])]
+    return p <= cutoff
+
+
 # ── One bootstrap round ───────────────────────────────────────────────────────
 
 def _one_boot(
@@ -131,8 +160,13 @@ def _one_boot(
     use_numba: bool,
 ):
     """
-    Run one shadow bootstrap. Returns a boolean (p,) selection mask, or None
-    if the round was skipped (degenerate label subsample / fit failure).
+    Run one shadow bootstrap. Returns (mask, vim_real, vim_shadow) where
+    mask is the boolean (p,) selection (real importance > shadow percentile)
+    and vim_real / vim_shadow are the length-p continuous importances — or
+    None if the round was skipped (degenerate label subsample / fit failure).
+
+    Shadow column k is a permutation of real column k, so vim_shadow[k] is the
+    matched noise-null for feature k (used for the FDR margin test downstream).
 
     Fully determined by `boot_seed` so the result is independent of execution
     order (and therefore of the number of parallel workers).
@@ -176,12 +210,12 @@ def _one_boot(
     else:
         vim_aug = rf.feature_importances_
 
-    vim_real   = vim_aug[:p]
-    vim_shadow = vim_aug[p:]
+    vim_real   = np.asarray(vim_aug[:p], dtype=np.float64)
+    vim_shadow = np.asarray(vim_aug[p:], dtype=np.float64)
 
     threshold = np.percentile(vim_shadow, float(shadow_percentile))
     mask = vim_real > threshold
-    return mask
+    return mask, vim_real, vim_shadow
 
 
 # ── Boruta shadow stability ───────────────────────────────────────────────────
@@ -222,22 +256,31 @@ def boruta_shadow_stability(
     -------
     names_sorted : list[str]   all pool features sorted by freq descending
     freqs_sorted : list[float] parallel selection frequencies in [0, 1]
+    pvals_sorted : list[float] importance p-value per feature (threshold_mode
+                   "fdr"): mean real importance vs the shadow-mean null, Gaussian
+                   tail (Altmann et al. 2010).
+    signtest_pvals_sorted : list[float] own-shadow sign-test p-value per feature
+                   (threshold_mode "signtest"): win-rate vs Binomial(n, 0.5).
+                   Same null (0.5) for every feature → common scale across pools.
     """
     feat_names = list(feat_names)
     p = X_pool.shape[1]
     n = X_pool.shape[0]
 
     if p == 0:
-        return [], []
+        return [], [], [], []
 
     X_pool = np.ascontiguousarray(X_pool, dtype=np.float32)
 
     # deterministic per-bootstrap seeds (order-independent)
     boot_seeds = np.random.SeedSequence(int(seed)).generate_state(int(n_boots))
 
-    counts  = np.zeros(p, dtype=np.float64)
-    n_valid = 0
-    limit   = blas_threads
+    counts     = np.zeros(p, dtype=np.float64)   # selection counts → frequency
+    sum_real   = np.zeros(p, dtype=np.float64)   # Σ real importance   → mean
+    sum_shadow = np.zeros(p, dtype=np.float64)   # Σ shadow importance → null mean
+    win_counts = np.zeros(p, dtype=np.float64)   # # bootstraps feature beat own shadow
+    n_valid    = 0
+    limit      = blas_threads
 
     def _run_batch(seeds_batch):
         if n_jobs == 1:
@@ -257,20 +300,27 @@ def boruta_shadow_stability(
                 for s in seeds_batch
             )
 
+    def _accumulate(res):
+        nonlocal n_valid
+        if res is None:
+            return
+        mask, vr, vs = res
+        counts[mask]   += 1.0
+        sum_real[:]     += vr
+        sum_shadow[:]   += vs
+        win_counts[:]   += (vr > vs)   # own-shadow win (sign test)
+        n_valid          += 1
+
     if not early_stop_boots:
-        for mask in _run_batch(boot_seeds):
-            if mask is not None:
-                counts[mask] += 1.0
-                n_valid += 1
+        for res in _run_batch(boot_seeds):
+            _accumulate(res)
     else:
         prev_freqs = None
         step = max(1, int(early_stop_check_every))
         for start in range(0, len(boot_seeds), step):
             batch = boot_seeds[start:start + step]
-            for mask in _run_batch(batch):
-                if mask is not None:
-                    counts[mask] += 1.0
-                    n_valid += 1
+            for res in _run_batch(batch):
+                _accumulate(res)
             if n_valid == 0:
                 continue
             cur_freqs = counts / n_valid
@@ -280,12 +330,44 @@ def boruta_shadow_stability(
             prev_freqs = cur_freqs
 
     if n_valid == 0:
-        return feat_names, [0.0] * p
+        return feat_names, [0.0] * p, [1.0] * p, [1.0] * p
 
     freqs = counts / n_valid
-    order = np.argsort(freqs)[::-1]
 
+    # ── sign-test p-value: own-shadow win-rate vs Binomial(n_valid, 0.5) ───────
+    # Each bootstrap, feature j races its OWN matched shadow (a permutation of
+    # itself) — a coin flip under the null, for EVERY feature regardless of pool.
+    # So win_counts ~ Binomial(n_valid, 0.5) under H0, and the one-sided p-value
+    # p_j = P(X >= win_counts[j]) puts correlated and independent features on one
+    # common scale. This is the "level playing field" statistic.
+    from scipy.stats import binom
+    signtest_pvals = binom.sf(win_counts - 1, int(n_valid), 0.5)
+
+    # ── p-value: mean real importance vs the matched shadow-null distribution ──
+    # Compare each feature's mean importance S_j = sum_real[j]/n_valid to the
+    # distribution of shadow mean importances {N_k = sum_shadow[k]/n_valid}
+    # (same aggregation → like-for-like). Altmann et al. (2010): use a PARAMETRIC
+    # (Gaussian) tail so the p-value is not floored at 1/(p+1) — critical for
+    # small pools (e.g. the independent pool), where an empirical p-value can
+    # never clear the BH line. Falls back to the empirical p-value if the null
+    # has no spread.
+    mean_real = sum_real / n_valid
+    ms        = sum_shadow / n_valid
+    null_mu   = float(ms.mean())
+    null_sd   = float(ms.std(ddof=1)) if p > 1 else 0.0
+    if null_sd > 1e-12:
+        from scipy.stats import norm
+        pvals = norm.sf((mean_real - null_mu) / null_sd)   # P(null >= observed)
+    else:
+        ms_sorted = np.sort(ms)
+        n_ge  = p - np.searchsorted(ms_sorted, mean_real, side="left")
+        pvals = (n_ge + 1.0) / (p + 1.0)
+    pvals = np.clip(pvals, 1e-12, 1.0)
+
+    order = np.argsort(freqs)[::-1]
     return (
         [feat_names[i] for i in order],
         freqs[order].tolist(),
+        pvals[order].tolist(),
+        signtest_pvals[order].tolist(),
     )

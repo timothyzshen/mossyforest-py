@@ -1,0 +1,179 @@
+---
+title: "ShapleyForest — Speed Benchmark"
+subtitle: "Standalone Python package configurations vs. the R reticulate backend"
+format:
+  html:
+    toc: true
+    code-fold: false
+    df-print: kable
+jupyter: python3
+---
+
+## What this benchmarks
+
+This document compares wall-clock runtime of `shapleyforest.sf()` across:
+
+1. **Configurations of the standalone Python package** — sequential vs.
+   parallel (`num_processors`), with/without Numba, and the cost of
+   materializing the (lazy) TreeSHAP interaction matrix.
+2. **The R package's reticulate path** — `sf(..., backend="python")` in R,
+   which calls `inst/python/sf_python_backend.py` through reticulate.
+
+All runs use an **identical synthetic dataset** (300 samples × 64 features:
+4 correlated modules of 12 features + 16 independent noise features), the same
+seed, and the same screen/select parameters, so the numbers are directly
+comparable.
+
+::: {.callout-note}
+## Two important caveats
+- **`shap_backend="fasttreeshap"` is not benchmarked here.** It pins
+  `shap<0.46` → `numpy<2`, a stack with no wheels for Python ≥3.12, so it
+  cannot be installed on this machine's Python 3.13. The code path exists and
+  works on Python ≤3.11; on a modern stack keep the default `"shap"`.
+- **The R path uses a different Python environment** (reticulate's
+  `r-reticulate` venv) than the standalone package (system `python3`). Its
+  sklearn/shap versions differ, so its *stable-feature count* can differ
+  slightly. Treat the R numbers as "the realistic R-via-reticulate experience,"
+  not a same-stack apples-to-apples SHAP comparison.
+:::
+
+## Setup
+
+```{python}
+import sys, time, subprocess
+from pathlib import Path
+import numpy as np
+import pandas as pd
+
+# benchmark helpers live alongside this .qmd
+sys.path.insert(0, str(Path.cwd()))
+from bench_common import (
+    make_data, run_python_suite, run_r_reticulate, run_cache_sweep, print_table,
+)
+
+SF_DEV = "/Users/tzshen/Documents/Github/sf_dev"   # path to the R package source
+X, y, mm = make_data()
+print(f"dataset: {X.shape[0]} samples x {X.shape[1]} features")
+```
+
+## Python package — configuration sweep
+
+Each row is one `sf()` call. The first call is a warm-up (not timed) so import
+and JIT-compilation costs don't pollute the measurements.
+
+```{python}
+py_rows = run_python_suite(X, y, mm)
+pd.DataFrame(py_rows, columns=["configuration", "seconds", "n_stable"])
+```
+
+## R reticulate backend
+
+Shells out to `Rscript bench_r_reticulate.R`, which loads the R package with
+`devtools::load_all()` (so the in-tree, updated Python backend is used) and
+times `sf(..., backend="python")`.
+
+```{python}
+r_rows = run_r_reticulate(SF_DEV, num_processors_list=(1, 4))
+pd.DataFrame(r_rows, columns=["configuration", "seconds", "n_stable"])
+```
+
+## Combined comparison
+
+```{python}
+all_rows = py_rows + r_rows
+print_table(all_rows)
+```
+
+## Screening cache — tuning-sweep speedup
+
+Phase 1 (screening) depends only on `X`, `y`, module membership, `screen_params`,
+and the seed — **not** on `select_params`. A tuning sweep over `pi_thr` (or CV)
+therefore recomputes identical screening every run. `screen_cache=True` caches it
+so only the first run pays for Phase 1.
+
+```{python}
+no_cache, cached, speedup = run_cache_sweep(X, y, mm)
+print(f"4-value pi_thr sweep:")
+print(f"  no cache     : {no_cache:6.1f}s")
+print(f"  screen_cache : {cached:6.1f}s   ({speedup:.2f}x faster)")
+```
+
+The win grows with the number of sweep points and with datasets where screening
+is a larger share of runtime (more/larger modules).
+
+## R ↔ Python parity
+
+Separately from speed, the two implementations were checked for numerical
+agreement. Running the standalone package and the R backend (`sf_python_backend.py`)
+**in the same Python process on identical in-memory data/seed** gives **exact
+parity**:
+
+- screening survivors identical per module
+- selected set identical (18/18)
+- stability frequencies match to **0.0000**
+- signed SHAP matrix bit-identical (max |Δ| = **0.000**, 0% of entries differ)
+
+Two findings from the in-depth check worth recording:
+
+1. **float32 vs float64 is not observable.** sklearn trees are float32 internally
+   regardless of input dtype, so the trees are identical, and TreeSHAP values are
+   bit-identical whether X is float32 or float64.
+2. **Survivor-column ordering was the real (now-fixed) divergence.** The package
+   originally ordered the Phase-1 survivor matrix module-grouped, while R's `sf()`
+   uses original-X column order; that changes RF `mtry` feature subsampling and
+   flipped one borderline feature. After matching R's ordering, parity is exact.
+
+A cross-language harness (`parity_check.py`, R via reticulate) is also provided;
+note it passes data through CSV, which perturbs values by ~1 ULP (4e-16).
+
+## Reference results (measured on this machine)
+
+Python 3.13, numpy 2.4.6, shap 0.51, scikit-learn 1.8; macOS / Darwin.
+Your numbers will vary with cores and dataset size.
+
+| configuration | time (s) | speedup | stable |
+|---|---:|---:|---:|
+| py: baseline (n_jobs=1)              | 11.32 | 1.00× | 22 |
+| py: parallel (n_jobs=2)              | 10.12 | 1.12× | 22 |
+| py: parallel (n_jobs=4)              |  9.97 | 1.14× | 22 |
+| py: n_jobs=1 + numba                 | 11.72 | 0.97× | 22 |
+| py: parallel + numba (n_jobs=4)      |  9.94 | 1.14× | 22 |
+| py: parallel(4) + interaction matrix | 11.55 | 0.98× | 22 |
+| R reticulate (num_processors=1)      | 18.14 | 0.62× | 26 |
+| R reticulate (num_processors=4)      | 16.92 | 0.67× | 26 |
+
+## How to read this
+
+- **Standalone Python ≈ 1.6× faster than R-via-reticulate** (11.3 s vs 18.1 s)
+  on identical data — from float32, the parallel bootstrap loop, and avoiding
+  reticulate's R↔Python marshalling. The R backend's bootstrap loop is still
+  sequential, so extra `num_processors` barely helps it (18.1 → 16.9 s).
+
+- **Parallelism (`num_processors`) gives a modest ~1.14× here** because the
+  dataset is small (sub-second RF fits, so thread overhead dominates). The
+  speedup grows with `n`, `n_features`, `n_boots`, and module count — scale the
+  dataset in `make_data()` to see it widen. Determinism holds regardless of
+  worker count (see `tests/test_optimizations.py::test_parallel_matches_sequential`).
+
+- **Numba is marginal** (~0.97–1.0×): the JIT'd mean‖SHAP‖ reduction is a tiny
+  slice of runtime next to TreeSHAP itself. It only helps at large `n_samples`,
+  and even then modestly. Left off by default.
+
+- **The interaction matrix costs ~1.5 s** (9.97 → 11.55 s) — which is exactly
+  why it is computed *lazily*. You pay it only when you access
+  `result.interaction_matrix` / `detect_interaction()` /
+  `plot_potential_interactions()`, not on every `fit()`.
+
+## Rendering
+
+`quarto` is not required to get the numbers — you can just run:
+
+```bash
+python benchmarks/bench_common.py
+```
+
+To render the full report (if Quarto is installed):
+
+```bash
+quarto render benchmarks/benchmark.qmd
+```
