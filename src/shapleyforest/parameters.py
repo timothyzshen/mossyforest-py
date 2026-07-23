@@ -22,18 +22,29 @@ class screen_control:
     keep_fraction : float
         Fraction of features retained per module after screening. Default 0.50.
     mtry_factor : float
-        Multiplier for mtry: ceil(factor * sqrt(p)) for regression,
-        ceil(factor * p/3) for classification. Default 1.0.
+        Multiplier applied to the mtry rule. Default 1.0.
+    mtry_rule : str
+        How mtry is derived from the feature count p.
+        "auto"     (default) — p/3 for classification, sqrt(p) for regression
+                   (the package's historical rule; preserves R parity).
+        "sqrt"     — sqrt(p) for both. Much cheaper for classification, where
+                   "auto" evaluates p/3 features per split.
+        "p_over_3" — p/3 for both.
+        NOTE: the standard RF convention is the reverse of "auto"
+        (classification sqrt(p), regression p/3); "auto" is kept as the default
+        so results and R parity are unchanged unless you opt in.
     min_ntree : int
         Minimum number of trees per screening forest. Default 500.
-    ntree_factor : int
-        Trees per forest = max(p * ntree_factor, min_ntree). Default 1.
+    ntree_factor : float
+        Trees per forest = max(p * ntree_factor, min_ntree). Default 1.0.
+        May be < 1 to reduce the tree count (e.g. 0.5 halves the p-scaled term).
     """
     drop_fraction: float = 0.25
     keep_fraction: float = 0.50
     mtry_factor: float = 1.0
+    mtry_rule: str = "auto"
     min_ntree: int = 500
-    ntree_factor: int = 1
+    ntree_factor: float = 1.0
 
     def __post_init__(self):
         if not 0 < self.drop_fraction < 1:
@@ -42,8 +53,10 @@ class screen_control:
             raise ValueError("keep_fraction must be in (0, 1]")
         if self.min_ntree < 1:
             raise ValueError("min_ntree must be >= 1")
-        if self.ntree_factor < 1:
-            raise ValueError("ntree_factor must be >= 1")
+        if self.ntree_factor <= 0:
+            raise ValueError("ntree_factor must be > 0")
+        if self.mtry_rule not in ("auto", "sqrt", "p_over_3"):
+            raise ValueError("mtry_rule must be 'auto', 'sqrt', or 'p_over_3'")
 
 
 @dataclass
@@ -60,10 +73,21 @@ class select_control:
         pre-reduction. Default 0.10.
     mtry_factor : float
         mtry multiplier for shadow-stability RFs. Default 1.0.
+    mtry_rule : str
+        "auto" (default) / "sqrt" / "p_over_3" — see screen_control.mtry_rule.
+    mtry_on_real : bool
+        How mtry is sized on the AUGMENTED [real | shadow] matrix (2p columns).
+        False (default) — mtry = rule(2p), the historical behaviour.
+        True — mtry = 2 * rule(p_real), so the expected number of REAL features
+        offered per split matches an unaugmented forest (the shadows otherwise
+        dilute real-feature sampling by ~half).
+        NOTE: this is a STATISTICAL correction, not a speed optimisation — for
+        the "sqrt" rule it is ~1.4x SLOWER (2*sqrt(p) > sqrt(2p)); for "p_over_3"
+        it is identical (2*(p/3) == 2p/3).
     min_ntree : int
         Minimum trees per forest. Default 500.
-    ntree_factor : int
-        Trees per forest scaling factor. Default 1.
+    ntree_factor : float
+        Trees per forest scaling factor. Default 1.0. May be < 1.
     shadow_mode : str
         "split"  — one corr pool + one ind pool evaluated separately.
         "within_module" — one shadow run per module. Default "split".
@@ -127,8 +151,10 @@ class select_control:
     """
     drop_fraction: float = 0.10
     mtry_factor: float = 1.0
+    mtry_rule: str = "auto"
+    mtry_on_real: bool = False
     min_ntree: int = 500
-    ntree_factor: int = 1
+    ntree_factor: float = 1.0
     shadow_mode: str = "split"
     n_boots: int = 50
     pi_thr: float = 0.60
@@ -149,6 +175,10 @@ class select_control:
     def __post_init__(self):
         if self.shadow_mode not in ("split", "within_module"):
             raise ValueError("shadow_mode must be 'split' or 'within_module'")
+        if self.mtry_rule not in ("auto", "sqrt", "p_over_3"):
+            raise ValueError("mtry_rule must be 'auto', 'sqrt', or 'p_over_3'")
+        if self.ntree_factor <= 0:
+            raise ValueError("ntree_factor must be > 0")
         if self.threshold_mode not in ("pi_thr", "elbow", "fdr", "signtest"):
             raise ValueError(
                 "threshold_mode must be 'pi_thr', 'elbow', 'fdr', or 'signtest'")

@@ -17,7 +17,6 @@ from .rfe import (
     _compute_mtry,
     _compute_ntree,
     _map_labels,
-    blockwise_reduce,
     shap_full_signed,
 )
 from .dml import cross_fit_residuals
@@ -98,16 +97,8 @@ def run_select_rfe(
               f"shadow_percentile={sl.shadow_percentile}  "
               f"pi_thr={sl.pi_thr}  n_boots={sl.n_boots}")
 
-    # ── blockwise pre-reduction if survivor pool is very large ────────────────
-    if X_surv_mat.shape[1] > max_modsize:
-        if verbose:
-            print(f"  Blockwise pre-reduction: {X_surv_mat.shape[1]} survivors → {max_modsize}")
-        X_surv_mat, feature_names_surv = blockwise_reduce(
-            X_surv_mat, feature_names_surv, y, max_modsize, 0.9,
-            sl.drop_fraction, sl.mtry_factor, sl.ntree_factor,
-            sl.min_ntree, nodesize, classification, seed, n_jobs,
-            use_shap=True, backend=backend, use_numba=use_numba,
-        )
+    # (Phase-2 blockwise pre-reduction removed by design — the full survivor
+    #  pool goes straight into shadow stability.)
 
     # ── DML: compute y_resid for ind pool (scope="indep") ────────────────────
     # Computed once here regardless of shadow_mode branch.
@@ -181,6 +172,8 @@ def run_select_rfe(
             early_stop_boots = sl.early_stop_boots,
             early_stop_tol   = sl.early_stop_tol,
             early_stop_check_every = sl.early_stop_check_every,
+            mtry_rule        = sl.mtry_rule,
+            mtry_on_real     = sl.mtry_on_real,
         )
         freq_map = dict(zip(names_sort, freqs_sort))
         # stash sign-test p-values for a single GLOBAL correction after all pools
@@ -408,7 +401,7 @@ def run_select_rfe(
     X_stable     = X_surv_mat[:, stable_cols]
 
     ntree_s = _compute_ntree(n_stable, sl.ntree_factor, sl.min_ntree)
-    mtry_s  = _compute_mtry(n_stable, sl.mtry_factor, classification)
+    mtry_s  = _compute_mtry(n_stable, sl.mtry_factor, classification, sl.mtry_rule)
 
     if verbose:
         print(f"  Fitting single-shot RF: n_stable={n_stable}  "

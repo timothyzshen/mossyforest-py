@@ -28,6 +28,7 @@ from joblib import Parallel, delayed
 from .rfe import (
     _build_rf,
     _compute_mtry,
+    _compute_mtry_augmented,
     _compute_ntree,
     shap_mean_abs,
 )
@@ -158,6 +159,8 @@ def _one_boot(
     shadow_percentile: float,
     backend: str,
     use_numba: bool,
+    mtry_rule: str = "auto",
+    mtry_on_real: bool = False,
 ):
     """
     Run one shadow bootstrap. Returns (mask, vim_real, vim_shadow) where
@@ -187,7 +190,8 @@ def _one_boot(
     X_aug[:, p:] = rng.permuted(X_real_sub, axis=0)
 
     n_aug    = 2 * p
-    mtry_aug = _compute_mtry(n_aug, mtry_factor, classification)
+    mtry_aug = _compute_mtry_augmented(p, mtry_factor, classification,
+                                       mtry_rule, mtry_on_real)
     ntree    = _compute_ntree(n_aug, ntree_factor, min_ntree)
 
     rf = _build_rf(ntree, mtry_aug, nodesize, int(boot_seed), 1, classification)
@@ -240,6 +244,8 @@ def boruta_shadow_stability(
     early_stop_boots: bool = False,
     early_stop_tol: float = 0.01,
     early_stop_check_every: int = 10,
+    mtry_rule: str = "auto",
+    mtry_on_real: bool = False,
 ) -> tuple:
     """
     Shadow-feature bootstrap stability selection on a single feature pool.
@@ -288,7 +294,8 @@ def boruta_shadow_stability(
                 return [
                     _one_boot(s, X_pool, y, p, n, mtry_factor, ntree_factor,
                               min_ntree, nodesize, classification, use_shap,
-                              shadow_percentile, backend, use_numba)
+                              shadow_percentile, backend, use_numba,
+                              mtry_rule, mtry_on_real)
                     for s in seeds_batch
                 ]
         with thread_limit_ctx(limit):
@@ -296,7 +303,8 @@ def boruta_shadow_stability(
                 delayed(_one_boot)(
                     s, X_pool, y, p, n, mtry_factor, ntree_factor,
                     min_ntree, nodesize, classification, use_shap,
-                    shadow_percentile, backend, use_numba)
+                    shadow_percentile, backend, use_numba,
+                    mtry_rule, mtry_on_real)
                 for s in seeds_batch
             )
 

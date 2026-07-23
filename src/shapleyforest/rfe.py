@@ -84,11 +84,42 @@ def _tree_explainer(rf, backend: str = "shap"):
 
 # ── RF / mtry / ntree helpers ─────────────────────────────────────────────────
 
-def _compute_mtry(n_features: int, mtry_factor: float, classification: bool) -> int:
-    if classification:
-        return min(max(1, math.ceil(mtry_factor * n_features / 3)), n_features)
-    else:
-        return min(max(1, math.ceil(mtry_factor * math.sqrt(n_features))), n_features)
+def _compute_mtry(n_features: int, mtry_factor: float, classification: bool,
+                  rule: str = "auto") -> int:
+    """
+    Features considered per split.
+
+    rule="auto"     — p/3 (classification) / sqrt(p) (regression). Historical
+                      default; preserves R parity. NOTE this is the reverse of
+                      the standard RF convention, and p/3 makes split search
+                      linear in p (the dominant cost for classification).
+    rule="sqrt"     — sqrt(p) for both.
+    rule="p_over_3" — p/3 for both.
+    """
+    if rule == "sqrt":
+        base = math.sqrt(n_features)
+    elif rule == "p_over_3":
+        base = n_features / 3
+    else:   # "auto"
+        base = (n_features / 3) if classification else math.sqrt(n_features)
+    return min(max(1, math.ceil(mtry_factor * base)), n_features)
+
+
+def _compute_mtry_augmented(p_real: int, mtry_factor: float, classification: bool,
+                            rule: str = "auto", on_real: bool = False) -> int:
+    """
+    mtry for the augmented [real | shadow] matrix (2*p_real columns).
+
+    on_real=False — mtry = rule(2p)          (historical)
+    on_real=True  — mtry = 2 * rule(p_real)  (keeps the expected number of REAL
+                    features per split equal to an unaugmented forest; a
+                    statistical correction, NOT a speedup)
+    """
+    n_aug = 2 * p_real
+    if on_real:
+        m = 2 * _compute_mtry(p_real, mtry_factor, classification, rule)
+        return min(max(1, m), n_aug)
+    return _compute_mtry(n_aug, mtry_factor, classification, rule)
 
 
 def _compute_ntree(n_features: int, ntree_factor: float, min_ntree: int) -> int:
@@ -243,6 +274,7 @@ def rfe_loop(
     use_shap: bool = True,
     backend: str = "shap",
     use_numba: bool = False,
+    mtry_rule: str = "auto",
 ) -> tuple:
     """
     Recursive feature elimination until `target` features remain.
@@ -268,7 +300,7 @@ def rfe_loop(
 
     while len(current_names) >= target:
         n_cur = len(current_names)
-        mtry  = _compute_mtry(n_cur, mtry_factor, classification)
+        mtry  = _compute_mtry(n_cur, mtry_factor, classification, mtry_rule)
         ntree = _compute_ntree(n_cur, ntree_factor, min_ntree)
 
         rf = _build_rf(ntree, mtry, nodesize, seed, n_jobs, classification)
@@ -341,6 +373,7 @@ def blockwise_reduce(
     use_shap: bool = True,
     backend: str = "shap",
     use_numba: bool = False,
+    mtry_rule: str = "auto",
 ) -> tuple:
     """
     Iteratively partition a large module into random blocks and run
@@ -366,7 +399,7 @@ def blockwise_reduce(
                 X_blk, names_blk, y, target_blk,
                 drop_fraction, mtry_factor, ntree_factor, min_ntree,
                 nodesize, classification, seed, n_jobs, use_shap,
-                backend=backend, use_numba=use_numba,
+                backend=backend, use_numba=use_numba, mtry_rule=mtry_rule,
             )
             name_to_orig = {feat_names[i]: i for i in block}
             kept_cols.extend([name_to_orig[f] for f in surv_b])

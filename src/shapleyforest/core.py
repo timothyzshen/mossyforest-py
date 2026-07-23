@@ -470,7 +470,8 @@ def sf(
         final_X_df  = pd.DataFrame(final_X_arr, columns=stable_features)
 
         p_final   = n_stable
-        mtry_fin  = _compute_mtry(p_final, select_params.mtry_factor, CLASSIFICATION)
+        mtry_fin  = _compute_mtry(p_final, select_params.mtry_factor, CLASSIFICATION,
+                                  select_params.mtry_rule)
         from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
         cls = RandomForestClassifier if CLASSIFICATION else RandomForestRegressor
 

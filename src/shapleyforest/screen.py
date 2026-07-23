@@ -105,6 +105,7 @@ def run_screen_rfe(
                 sc.drop_fraction, sc.mtry_factor, sc.ntree_factor,
                 sc.min_ntree, nodesize, classification, seed, 1,
                 use_shap=True, backend=backend, use_numba=use_numba,
+                mtry_rule=sc.mtry_rule,
             )
             n_mod  = X_mod.shape[1]
             target = max(1, math.ceil(n_mod * sc.keep_fraction))
@@ -117,6 +118,7 @@ def run_screen_rfe(
             sc.drop_fraction, sc.mtry_factor, sc.ntree_factor,
             sc.min_ntree, nodesize, classification, seed, 1,
             use_shap=True, backend=backend, use_numba=use_numba,
+            mtry_rule=sc.mtry_rule,
         )
         return mod, survivors, vims, init_info
 
