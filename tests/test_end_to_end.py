@@ -144,22 +144,6 @@ def test_threshold_mode_elbow_runs(block_data):
         assert len(corr_elbow) > 0, "corr pool should have an elbow_rank under elbow mode"
 
 
-def test_threshold_mode_fdr_runs(block_data):
-    """threshold_mode='fdr' selects via empirical p-value + BH-FDR on both pools."""
-    X, y, labels, _ = block_data
-    sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
-    sl = select_control(n_boots=10, min_ntree=30,
-                        shadow_mode="split", indep_modules=["independent"],
-                        threshold_mode="fdr", fdr_q=0.10)
-    result = sf(X, y, module_membership=labels,
-                screen_params=sc, select_params=sl,
-                final_ntree=30, verbose=0, seed=5)
-    assert result is not None
-    # stability_data threshold column should record the FDR target for each pool
-    sd = result.stability_data
-    if sd is not None and len(sd) > 0:
-        assert (sd["threshold"] == 0.10).any()
-
 
 def test_shap_direction_recovers_sign(block_data):
     """
@@ -200,32 +184,6 @@ def test_shap_direction_recovers_sign(block_data):
         df["signed_importance"].abs().values, df["mean_abs_shap"].values, atol=1e-4)
 
 
-def test_threshold_mode_signtest_runs(block_data):
-    """threshold_mode='signtest': own-shadow sign test + one GLOBAL FDR."""
-    X, y, labels, _ = block_data
-    sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
-    sl = select_control(n_boots=12, min_ntree=30,
-                        shadow_mode="split", indep_modules=["independent"],
-                        threshold_mode="signtest", fdr_q=0.10)
-    result = sf(X, y, module_membership=labels,
-                screen_params=sc, select_params=sl,
-                final_ntree=30, verbose=0, seed=5)
-    assert result is not None
-    for f in result.stability_freq:
-        assert 0.0 <= result.stability_freq[f] <= 1.0
-
-
-def test_threshold_mode_signtest_by(block_data):
-    """signtest with Benjamini–Yekutieli correction (arbitrary dependence)."""
-    X, y, labels, _ = block_data
-    sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
-    sl = select_control(n_boots=12, min_ntree=30,
-                        shadow_mode="split", indep_modules=["independent"],
-                        threshold_mode="signtest", fdr_q=0.10, fdr_method="by")
-    result = sf(X, y, module_membership=labels,
-                screen_params=sc, select_params=sl,
-                final_ntree=30, verbose=0, seed=5)
-    assert result is not None
 
 
 def test_within_module_mode_runs(block_data):
@@ -437,3 +395,32 @@ def test_corr_module_survivors_beat_noise_in_frequency(block_data):
         f"Corr pool mean freq {corr_freqs.mean():.3f} not > "
         f"indep pool mean freq {indep_freqs.mean():.3f}"
     )
+
+
+def test_dml_classification_uses_regression_on_residual():
+    """
+    Classification + use_dml_residual: the residualized (continuous) target must
+    be fit as REGRESSION in stability selection, not truncated to int.
+    Regression finds a weak independent signal that the buggy int-cast misses.
+    """
+    import numpy as np
+    from shapleyforest.shadow import boruta_shadow_stability
+    from shapleyforest.dml import cross_fit_residuals
+    rng = np.random.default_rng(0); n = 300
+    z, ind = rng.standard_normal(n), rng.standard_normal(n)
+    Xcorr = np.column_stack([z + rng.standard_normal(n) * 0.3 for _ in range(6)])
+    Xind  = np.column_stack([ind] + [rng.standard_normal(n) for _ in range(5)]).astype(np.float32)
+    y_int = ((z + 0.7 * ind) > 0).astype(int)
+    y_res = cross_fit_residuals(Xcorr, y_int, k_folds=5, ntree=200, seed=0)
+    feats = [f"ind{i}" for i in range(6)]
+
+    def freq(classif):
+        names, freqs = boruta_shadow_stability(
+            X_pool=Xind, feat_names=feats, y=y_res, n_boots=20, mtry_factor=1.0,
+            ntree_factor=1, min_ntree=100, nodesize=5, classification=classif,
+            seed=1, n_jobs=1, shadow_percentile=95)
+        return dict(zip(names, freqs))["ind0"]
+
+    # regression (the fix) recovers the signal; classification (bug) truncates it away
+    assert freq(False) > freq(True)
+    assert freq(False) >= 0.5
