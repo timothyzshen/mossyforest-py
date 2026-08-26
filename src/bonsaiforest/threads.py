@@ -2,7 +2,7 @@
 Thread-pool management to prevent nested-parallelism oversubscription.
 
 When the bootstrap / module loops are parallelized across `num_processors`
-workers, each inner fit (RF tree building, BLAS calls in DML/PCA) would also
+workers, each inner fit (RF tree building, BLAS calls in cfRes/PCA) would also
 spawn its own threads — N_workers × M_threads on N cores → cache thrash and
 context-switch overhead that can erase the parallel gain.
 

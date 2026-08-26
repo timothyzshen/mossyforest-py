@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "shapleyforest"
+name = "bonsaiforest"
 version = "0.1.0"
 description = "Network-aware stable feature selection via Shapley-augmented random forests"
 readme = "README.md"
@@ -57,11 +57,11 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tzshen/shapleyforest_py"
-Issues   = "https://github.com/tzshen/shapleyforest_py/issues"
+Homepage = "https://github.com/tzshen/bonsaiforest_py"
+Issues   = "https://github.com/tzshen/bonsaiforest_py/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/shapleyforest"]
+packages = ["src/bonsaiforest"]
 
 [tool.ruff]
 line-length = 88

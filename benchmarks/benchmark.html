@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>ShapleyForest — Speed Benchmark</title>
+<title>BonsaiForest — Speed Benchmark</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -102,7 +102,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">ShapleyForest — Speed Benchmark</h1>
+<h1 class="title">BonsaiForest — Speed Benchmark</h1>
 <p class="subtitle lead">Standalone Python package configurations vs.&nbsp;the R reticulate backend</p>
 </div>
 
@@ -122,7 +122,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="what-this-benchmarks" class="level2">
 <h2 class="anchored" data-anchor-id="what-this-benchmarks">What this benchmarks</h2>
-<p>This document compares wall-clock runtime of <code>shapleyforest.sf()</code> across:</p>
+<p>This document compares wall-clock runtime of <code>bonsaiforest.bf()</code> across:</p>
 <ol type="1">
 <li><strong>Configurations of the standalone Python package</strong> — sequential vs. parallel (<code>num_processors</code>), with/without Numba, and the cost of materializing the (lazy) TreeSHAP interaction matrix.</li>
 <li><strong>The R package’s reticulate path</strong> — <code>sf(..., backend="python")</code> in R, which calls <code>inst/python/sf_python_backend.py</code> through reticulate.</li>

@@ -1,14 +1,14 @@
 """
-ShapleyForest — main user-facing API.
+BonsaiForest — main user-facing API.
 
 Primary functions (matching R's API):
-  sf(X, y, module_membership, ...)    — two-phase feature selection
-  wsf(X, y, WGCNA_params, ...)        — same but runs WGCNA first
+  bf(X, y, module_membership, ...)    — two-phase feature selection
+  wbf(X, y, WGCNA_params, ...)        — same but runs WGCNA first
 
 sklearn-compatible estimator:
-  ShapleyForest(...)                  — wraps sf() for pipeline use
+  BonsaiForest(...)                  — wraps bf() for pipeline use
 
-Algorithm (matching R's sf() / sf_python_backend.py v18):
+Algorithm (matching R's bf() / bf_python_backend.py v18):
   Phase 1 (Screen):    per-module RFE on the full dataset
   Phase 2 (Select):    shadow-stability selection on survivors
   Phase 3 (Final RF):  RF on the stable set for prediction
@@ -27,7 +27,7 @@ from .parameters import screen_control, select_control, WGCNA_control
 from .rfe import _build_rf, _compute_mtry, _compute_ntree, _map_labels, shap_full_signed
 from .screen import run_screen_rfe
 from .select import run_select_rfe
-from .result import ShapleyForestResult
+from .result import BonsaiForestResult
 from .modules import detect_modules
 from . import cache
 from .cache import compute_screen_key, load_cached, store_cached
@@ -164,9 +164,9 @@ def _build_final_shap_df(
     return df.reset_index(drop=True)
 
 
-# ── sf() — main two-phase function ───────────────────────────────────────────
+# ── bf() — main two-phase function ───────────────────────────────────────────
 
-def sf(
+def bf(
     X,
     y,
     module_membership,
@@ -184,11 +184,11 @@ def sf(
     use_numba: bool                         = False,
     blas_threads: int | None                = None,
     screen_cache=None,
-) -> ShapleyForestResult:
+) -> BonsaiForestResult:
     """
-    Shapley Forest Feature Selection.
+    Bonsai Forest Feature Selection.
 
-    Matches R's sf().
+    Matches R's bf().
 
     Parameters
     ----------
@@ -249,7 +249,7 @@ def sf(
 
     Returns
     -------
-    ShapleyForestResult
+    BonsaiForestResult
     """
     if screen_params is None:
         screen_params = screen_control()
@@ -279,7 +279,7 @@ def sf(
         nodesize = 1 if CLASSIFICATION else 5
 
     mm_map = _parse_module_membership(module_membership, feature_names)
-    module_assign = [mm_map.get(f, "independent") for f in feature_names]
+    module_assign = [mm_map.get(f, "unassigned") for f in feature_names]
     module_list   = list(dict.fromkeys(module_assign))   # preserves order, deduplicates
 
     runtimes = {"Screen": np.nan, "Selection": np.nan, "Final_RF": np.nan}
@@ -368,7 +368,7 @@ def sf(
             survivors_flat.append(f)
             surv_to_mod[f] = mod
 
-    # Order survivors in the ORIGINAL X column order to match R's sf(), which
+    # Order survivors in the ORIGINAL X column order to match R's bf(), which
     # builds X_surv via `X[, names(X) %in% survivors]` (original order). Column
     # order changes sklearn RF's mtry feature subsampling (it samples by index),
     # so matching the order is required for exact parity with the R backend.
@@ -387,7 +387,7 @@ def sf(
         X_surv_mat           = X_surv,
         y                    = y_arr,
         feature_names_surv   = survivors_flat,
-        module_assignments_surv = [surv_to_mod.get(f, "independent")
+        module_assignments_surv = [surv_to_mod.get(f, "unassigned")
                                     for f in survivors_flat],
         select_params        = select_params,
         nodesize             = nodesize,
@@ -510,7 +510,7 @@ def sf(
     if verbose >= 1:
         print("Done.")
 
-    return ShapleyForestResult(
+    return BonsaiForestResult(
         final_rf          = final_rf,
         final_X           = final_X_df,
         module_membership = module_membership_df,
@@ -527,9 +527,9 @@ def sf(
     )
 
 
-# ── wsf() — sf() with integrated WGCNA module detection ──────────────────────
+# ── wbf() — bf() with integrated WGCNA module detection ──────────────────────
 
-def wsf(
+def wbf(
     X,
     y,
     WGCNA_params: WGCNA_control | None  = None,
@@ -547,22 +547,22 @@ def wsf(
     use_numba: bool                      = False,
     blas_threads: int | None             = None,
     screen_cache=None,
-) -> ShapleyForestResult:
+) -> BonsaiForestResult:
     """
-    Shapley Forest with WGCNA Module Detection.
+    Bonsai Forest with WGCNA Module Detection.
 
-    Runs PyWGCNA to derive module_membership, then calls sf().
-    Matches R's wsf().
+    Runs PyWGCNA to derive module_membership, then calls bf().
+    Matches R's wbf().
 
     Parameters
     ----------
     WGCNA_params : WGCNA_control
         WGCNA parameters. Default: WGCNA_control(power=6).
-    All other parameters as in sf().
+    All other parameters as in bf().
 
     Returns
     -------
-    ShapleyForestResult with WGCNA_object populated.
+    BonsaiForestResult with WGCNA_object populated.
     """
     if WGCNA_params is None:
         WGCNA_params = WGCNA_control()
@@ -592,7 +592,7 @@ def wsf(
         unique_mods = len(set(module_labels))
         print(f"WGCNA complete: {unique_mods} modules detected.")
 
-    result = sf(
+    result = bf(
         X                    = X,
         y                    = y,
         module_membership    = module_membership,
@@ -616,11 +616,11 @@ def wsf(
     return result
 
 
-# ── ShapleyForest — sklearn-compatible estimator ──────────────────────────────
+# ── BonsaiForest — sklearn-compatible estimator ──────────────────────────────
 
-class ShapleyForest(BaseEstimator, TransformerMixin):
+class BonsaiForest(BaseEstimator, TransformerMixin):
     """
-    Sklearn-compatible wrapper around sf().
+    Sklearn-compatible wrapper around bf().
 
     Suitable for use in sklearn pipelines. Module membership must be supplied
     at fit() time because it is data-dependent (not a hyperparameter).
@@ -687,7 +687,7 @@ class ShapleyForest(BaseEstimator, TransformerMixin):
         self.blas_threads         = blas_threads
         self.screen_cache         = screen_cache
 
-    def fit(self, X, y, module_membership=None) -> "ShapleyForest":
+    def fit(self, X, y, module_membership=None) -> "BonsaiForest":
         """
         Run the two-phase algorithm.
 
@@ -704,7 +704,7 @@ class ShapleyForest(BaseEstimator, TransformerMixin):
                 "a list/array aligned with X columns, or a pd.Series."
             )
 
-        self.result_ = sf(
+        self.result_ = bf(
             X                    = X,
             y                    = y,
             module_membership    = module_membership,
@@ -767,7 +767,7 @@ class ShapleyForest(BaseEstimator, TransformerMixin):
         sc = self.screen_params or screen_control()
         sl = self.select_params or select_control()
         return (
-            f"ShapleyForest("
+            f"BonsaiForest("
             f"shadow_mode='{sl.shadow_mode}', "
             f"n_boots={sl.n_boots}, "
             f"pi_thr={sl.pi_thr}, "

@@ -1,5 +1,5 @@
 """
-Shared benchmark helpers for ShapleyForest speed comparisons.
+Shared benchmark helpers for BonsaiForest speed comparisons.
 
 Used by both benchmark.qmd and a plain `python bench_common.py` run.
 Keeps the synthetic dataset identical to bench_r_reticulate.R so the
@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from shapleyforest import sf, screen_control, select_control
+from bonsaiforest import bf, screen_control, select_control
 
 
 def make_data(n: int = 300, seed: int = 0):
@@ -31,7 +31,7 @@ def make_data(n: int = 300, seed: int = 0):
     for j in range(16):
         cols.append(rng.standard_normal(n))
         feats.append(f"ind{j}")
-        labels.append("independent")
+        labels.append("unassigned")
     X = pd.DataFrame(np.column_stack(cols), columns=feats)
     y = ((lat[0] + lat[1] - lat[2]) > 0).astype(int)
     return X, y, dict(zip(feats, labels))
@@ -40,15 +40,15 @@ def make_data(n: int = 300, seed: int = 0):
 def _params():
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=150)
     sl = select_control(n_boots=30, min_ntree=150, pi_thr=0.4,
-                        shadow_mode="split", indep_modules=["independent"])
+                        shadow_mode="split", unassigned_modules=["unassigned"])
     return sc, sl
 
 
 def time_config(X, y, mm, label, access_interaction=False, seed=42, **kw):
-    """Time one sf() configuration. Returns (label, seconds, n_stable)."""
+    """Time one bf() configuration. Returns (label, seconds, n_stable)."""
     sc, sl = _params()
     t = time.time()
-    r = sf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    r = bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
            final_ntree=150, verbose=0, seed=seed, **kw)
     if access_interaction and r.interaction_matrix is not None:
         pass   # force the lazy interaction matrix to materialize
@@ -60,7 +60,7 @@ def run_python_suite(X, y, mm):
     """Benchmark the standalone-Python package across configurations."""
     # warmup: trigger imports + any JIT compile so timings are steady-state
     sc, sl = _params()
-    sf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
        final_ntree=50, verbose=0, seed=1, num_processors=1)
 
     rows = [
@@ -76,7 +76,7 @@ def run_python_suite(X, y, mm):
 
 
 def run_r_reticulate(sf_dev_path: str, num_processors_list=(1, 4), seed=42):
-    """Benchmark the R sf(..., backend='python') path via subprocess Rscript."""
+    """Benchmark the R bf(..., backend='python') path via subprocess Rscript."""
     here   = Path(__file__).resolve().parent
     r_file = here / "bench_r_reticulate.R"
     rows = []
@@ -106,14 +106,14 @@ def run_cache_sweep(X, y, mm, pi_values=(0.3, 0.4, 0.5, 0.6)):
     identical across the sweep, so the cache lets every run after the first skip
     Phase 1. Returns (no_cache_seconds, cached_seconds, speedup).
     """
-    from shapleyforest import clear_memory_cache
+    from bonsaiforest import clear_memory_cache
 
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=150)
 
     def one(cache, pi):
         sl = select_control(n_boots=30, min_ntree=150, pi_thr=pi,
-                            shadow_mode="split", indep_modules=["independent"])
-        sf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+                            shadow_mode="split", unassigned_modules=["unassigned"])
+        bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
            final_ntree=150, verbose=0, seed=42, screen_cache=cache)
 
     # warmup
@@ -177,10 +177,10 @@ def append_results(path, rows, n, p):
 
 if __name__ == "__main__":
     import argparse
-    ap = argparse.ArgumentParser(description="ShapleyForest speed benchmark")
+    ap = argparse.ArgumentParser(description="BonsaiForest speed benchmark")
     ap.add_argument("--out", metavar="CSV",
                     help="append results to this CSV history file")
-    ap.add_argument("--sf-dev", default="/Users/tzshen/Documents/Github/sf_dev",
+    ap.add_argument("--bf-dev", default="/Users/tzshen/Documents/Github/sf_dev",
                     help="path to the R package source (for the reticulate comparison)")
     ap.add_argument("--no-r", action="store_true",
                     help="skip the R reticulate comparison")

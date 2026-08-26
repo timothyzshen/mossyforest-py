@@ -1,8 +1,8 @@
 """
-End-to-end tests for ShapleyForest two-phase algorithm.
+End-to-end tests for BonsaiForest two-phase algorithm.
 
 Uses a synthetic block-structured dataset that mimics correlated gene modules.
-Tests cover all shadow_mode / DML combinations.
+Tests cover all shadow_mode / cfRes combinations.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from shapleyforest import sf, screen_control, select_control
+from bonsaiforest import bf, screen_control, select_control
 
 
 # ── Shared fixture ────────────────────────────────────────────────────────────
@@ -42,7 +42,7 @@ def block_data():
     X = np.hstack([mod_A, mod_B, mod_C, ind])
     y = (z1 + z2 - z3 > 0).astype(int)
 
-    labels = (["A"] * 10 + ["B"] * 10 + ["C"] * 10 + ["independent"] * 5)
+    labels = (["A"] * 10 + ["B"] * 10 + ["C"] * 10 + ["unassigned"] * 5)
 
     feat_names = (
         [f"A{i}" for i in range(10)]
@@ -58,7 +58,7 @@ def _fast_params():
     sl = select_control(
         n_boots=8, min_ntree=30, pi_thr=0.4,
         shadow_mode="split",
-        indep_modules=["independent"],
+        unassigned_modules=["unassigned"],
         shadow_percentile=95,
     )
     return sc, sl
@@ -69,7 +69,7 @@ def _fast_params():
 def test_split_mode_runs(block_data):
     X, y, labels, feat_names = block_data
     sc, sl = _fast_params()
-    result = sf(
+    result = bf(
         pd.DataFrame(X, columns=feat_names), y,
         module_membership=dict(zip(feat_names, labels)),
         screen_params=sc, select_params=sl,
@@ -82,7 +82,7 @@ def test_split_mode_runs(block_data):
 def test_split_mode_result_structure(block_data):
     X, y, labels, feat_names = block_data
     sc, sl = _fast_params()
-    result = sf(
+    result = bf(
         X, y,
         module_membership=labels,
         screen_params=sc, select_params=sl,
@@ -98,7 +98,7 @@ def test_split_mode_result_structure(block_data):
 def test_split_mode_stability_data(block_data):
     X, y, labels, feat_names = block_data
     sc, sl = _fast_params()
-    result = sf(
+    result = bf(
         X, y, module_membership=labels,
         screen_params=sc, select_params=sl,
         final_ntree=30, verbose=0, seed=0,
@@ -112,7 +112,7 @@ def test_split_mode_stability_data(block_data):
 def test_split_mode_shap_ci_columns(block_data):
     X, y, labels, _ = block_data
     sc, sl = _fast_params()
-    result = sf(
+    result = bf(
         X, y, module_membership=labels,
         screen_params=sc, select_params=sl,
         final_ntree=30, verbose=0, seed=1,
@@ -130,9 +130,9 @@ def test_threshold_mode_elbow_runs(block_data):
     X, y, labels, _ = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
     sl = select_control(n_boots=8, min_ntree=30, pi_thr=0.4,
-                        shadow_mode="split", indep_modules=["independent"],
+                        shadow_mode="split", unassigned_modules=["unassigned"],
                         threshold_mode="elbow")
-    result = sf(X, y, module_membership=labels,
+    result = bf(X, y, module_membership=labels,
                 screen_params=sc, select_params=sl,
                 final_ntree=30, verbose=0, seed=5)
     assert result is not None
@@ -162,11 +162,11 @@ def test_shap_direction_recovers_sign(block_data):
     })
     y = ((2 * a - 2 * b) > 0).astype(int)
     mm = {c: ("A" if c.startswith("pos") else "B" if c.startswith("neg")
-              else "independent") for c in Xd.columns}
+              else "unassigned") for c in Xd.columns}
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.6, min_ntree=60)
     sl = select_control(n_boots=15, min_ntree=60, pi_thr=0.3,
-                        shadow_mode="split", indep_modules=["independent"])
-    res = sf(Xd, y, module_membership=mm, screen_params=sc, select_params=sl,
+                        shadow_mode="split", unassigned_modules=["unassigned"])
+    res = bf(Xd, y, module_membership=mm, screen_params=sc, select_params=sl,
              final_ntree=60, verbose=0, seed=3)
     df = res.final_SHAP
     assert "direction" in df.columns
@@ -191,7 +191,7 @@ def test_within_module_mode_runs(block_data):
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
     sl = select_control(n_boots=8, min_ntree=30, pi_thr=0.4,
                         shadow_mode="within_module", shadow_percentile=95)
-    result = sf(
+    result = bf(
         X, y, module_membership=labels,
         screen_params=sc, select_params=sl,
         final_ntree=30, verbose=0, seed=5,
@@ -205,7 +205,7 @@ def test_within_module_stability_data_pools(block_data):
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
     sl = select_control(n_boots=6, min_ntree=30, pi_thr=0.4,
                         shadow_mode="within_module", shadow_percentile=95)
-    result = sf(
+    result = bf(
         X, y, module_membership=labels,
         screen_params=sc, select_params=sl,
         final_ntree=30, verbose=0, seed=7,
@@ -216,19 +216,19 @@ def test_within_module_stability_data_pools(block_data):
         assert len(unique_pools) >= 1
 
 
-# ── DML y-residualization ─────────────────────────────────────────────────────
+# ── cfRes y-residualization ─────────────────────────────────────────────────────
 
-def test_dml_indep_scope_runs(block_data):
-    """use_dml_residual=True with dml_scope='indep' must complete."""
+def test_dml_unassigned_scope_runs(block_data):
+    """use_cfres=True with cfres_scope='unassigned' must complete."""
     X, y, labels, _ = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
     sl = select_control(
         n_boots=6, min_ntree=30, pi_thr=0.4,
-        shadow_mode="split", indep_modules=["independent"],
-        use_dml_residual=True, dml_scope="indep",
-        dml_n_folds=2, dml_ntree=20,
+        shadow_mode="split", unassigned_modules=["unassigned"],
+        use_cfres=True, cfres_scope="unassigned",
+        cfres_n_folds=2, cfres_ntree=20,
     )
-    result = sf(
+    result = bf(
         X, y, module_membership=labels,
         screen_params=sc, select_params=sl,
         final_ntree=30, verbose=0, seed=99,
@@ -237,16 +237,16 @@ def test_dml_indep_scope_runs(block_data):
 
 
 def test_dml_all_modules_scope_within(block_data):
-    """use_dml_residual=True with dml_scope='all_modules' within_module."""
+    """use_cfres=True with cfres_scope='all_modules' within_module."""
     X, y, labels, _ = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
     sl = select_control(
         n_boots=5, min_ntree=30, pi_thr=0.4,
         shadow_mode="within_module",
-        use_dml_residual=True, dml_scope="all_modules",
-        dml_n_folds=2, dml_ntree=20,
+        use_cfres=True, cfres_scope="all_modules",
+        cfres_n_folds=2, cfres_ntree=20,
     )
-    result = sf(
+    result = bf(
         X, y, module_membership=labels,
         screen_params=sc, select_params=sl,
         final_ntree=30, verbose=0, seed=11,
@@ -259,7 +259,7 @@ def test_dml_all_modules_scope_within(block_data):
 def test_interaction_matrix_shape(block_data):
     X, y, labels, _ = block_data
     sc, sl = _fast_params()
-    result = sf(
+    result = bf(
         X, y, module_membership=labels,
         screen_params=sc, select_params=sl,
         final_ntree=30, verbose=0, seed=3,
@@ -278,7 +278,7 @@ def test_interaction_matrix_shape(block_data):
 def test_detect_interaction(block_data):
     X, y, labels, _ = block_data
     sc, sl = _fast_params()
-    result = sf(
+    result = bf(
         X, y, module_membership=labels,
         screen_params=sc, select_params=sl,
         final_ntree=30, verbose=0, seed=3,
@@ -300,7 +300,7 @@ def test_predict_returns_array(block_data):
     X, y, labels, feat_names = block_data
     sc, sl = _fast_params()
     import pandas as pd
-    result = sf(
+    result = bf(
         pd.DataFrame(X, columns=feat_names), y,
         module_membership=dict(zip(feat_names, labels)),
         screen_params=sc, select_params=sl,
@@ -320,7 +320,7 @@ def test_auto_initial_stop(block_data, tmp_path, monkeypatch):
     X, y, labels, _ = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     with pytest.raises(RuntimeError, match="Stopped after initial screen"):
-        sf(X, y, module_membership=labels,
+        bf(X, y, module_membership=labels,
            screen_params=sc, select_params=select_control(n_boots=3, min_ntree=20),
            final_ntree=20, verbose=0, seed=0, auto_initial="1")
 
@@ -330,7 +330,7 @@ def test_auto_initial_3_stops_no_save(block_data, tmp_path, monkeypatch):
     X, y, labels, _ = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     with pytest.raises(RuntimeError, match="Stopped after initial screen"):
-        sf(X, y, module_membership=labels,
+        bf(X, y, module_membership=labels,
            screen_params=sc, select_params=select_control(n_boots=3, min_ntree=20),
            final_ntree=20, verbose=0, seed=0, auto_initial="3")
     assert not (tmp_path / "initial_screen.csv").exists()
@@ -342,7 +342,7 @@ def test_dataframe_input(block_data):
     X, y, labels, feat_names = block_data
     X_df = pd.DataFrame(X, columns=feat_names)
     sc, sl = _fast_params()
-    result = sf(
+    result = bf(
         X_df, y,
         module_membership=dict(zip(feat_names, labels)),
         screen_params=sc, select_params=sl,
@@ -357,12 +357,12 @@ def test_dataframe_input(block_data):
 def test_corr_module_survivors_beat_noise_in_frequency(block_data):
     """
     Features that survive Phase 1 from signal modules (A, B, C) should have
-    higher mean shadow-stability frequency than survivors from the independent pool.
+    higher mean shadow-stability frequency than survivors from the unassigned pool.
 
     Within each module, all features are equally driven by the same latent variable,
     so screening keeps whichever half have the highest SHAP — not necessarily A0/B0/C0.
     We compare ANY corr-module survivor (pool="corr") against noise survivors
-    (pool="indep") using the stability_data per-pool frequencies.
+    (pool="unassigned") using the stability_data per-pool frequencies.
     """
     X, y, labels, feat_names = block_data
     X_df = pd.DataFrame(X, columns=feat_names)
@@ -371,10 +371,10 @@ def test_corr_module_survivors_beat_noise_in_frequency(block_data):
     sl = select_control(
         n_boots=20, min_ntree=50, pi_thr=0.01,
         shadow_mode="split",
-        indep_modules=["independent"],
+        unassigned_modules=["unassigned"],
         shadow_percentile=95,
     )
-    result = sf(
+    result = bf(
         X_df, y,
         module_membership=dict(zip(feat_names, labels)),
         screen_params=sc, select_params=sl,
@@ -386,26 +386,26 @@ def test_corr_module_survivors_beat_noise_in_frequency(block_data):
         pytest.skip("No stability data available.")
 
     corr_freqs  = sd[sd["pool"] == "corr"]["freq"].values
-    indep_freqs = sd[sd["pool"] == "indep"]["freq"].values
+    unassigned_freqs = sd[sd["pool"] == "unassigned"]["freq"].values
 
-    if len(corr_freqs) == 0 or len(indep_freqs) == 0:
+    if len(corr_freqs) == 0 or len(unassigned_freqs) == 0:
         pytest.skip("Missing pool data.")
 
-    assert corr_freqs.mean() > indep_freqs.mean(), (
+    assert corr_freqs.mean() > unassigned_freqs.mean(), (
         f"Corr pool mean freq {corr_freqs.mean():.3f} not > "
-        f"indep pool mean freq {indep_freqs.mean():.3f}"
+        f"unassigned pool mean freq {unassigned_freqs.mean():.3f}"
     )
 
 
 def test_dml_classification_uses_regression_on_residual():
     """
-    Classification + use_dml_residual: the residualized (continuous) target must
+    Classification + use_cfres: the residualized (continuous) target must
     be fit as REGRESSION in stability selection, not truncated to int.
     Regression finds a weak independent signal that the buggy int-cast misses.
     """
     import numpy as np
-    from shapleyforest.shadow import boruta_shadow_stability
-    from shapleyforest.dml import cross_fit_residuals
+    from bonsaiforest.shadow import boruta_shadow_stability
+    from bonsaiforest.cfres import cross_fit_residuals
     rng = np.random.default_rng(0); n = 300
     z, ind = rng.standard_normal(n), rng.standard_normal(n)
     Xcorr = np.column_stack([z + rng.standard_normal(n) * 0.3 for _ in range(6)])

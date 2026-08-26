@@ -1,6 +1,6 @@
 """
 In-process parity verification: standalone package vs. the R package's Python
-backend (inst/python/sf_python_backend.py), run in ONE Python process on
+backend (inst/python/bf_python_backend.py), run in ONE Python process on
 identical in-memory data + seed + library stack.
 
 This is the definitive parity check — it removes R, reticulate, CSV round-trips,
@@ -25,13 +25,13 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 
 # Import the R package's Python backend directly. Point at the canonical
-# published package (github.com/timothyzshen/shapleyforest); its backend is
+# published package (github.com/timothyzshen/bonsaiforest); its backend is
 # byte-identical to the sf_dev working copy after the RNG alignment.
-R_BACKEND_DIR = "/Users/tzshen/Documents/Github/shapleyforest/inst/python"
+R_BACKEND_DIR = "/Users/tzshen/Documents/Github/bonsaiforest/inst/python"
 sys.path.insert(0, R_BACKEND_DIR)
-import sf_python_backend as bk   # noqa: E402
+import bf_python_backend as bk   # noqa: E402
 
-from shapleyforest import sf, screen_control, select_control   # noqa: E402
+from bonsaiforest import bf, screen_control, select_control   # noqa: E402
 
 SEED = 42
 
@@ -46,7 +46,7 @@ def make_data(n=200, seed=0):
             feats.append(f"M{m}_{j}"); labels.append(f"M{m}")
     for j in range(10):
         cols.append(rng.standard_normal(n))
-        feats.append(f"ind{j}"); labels.append("independent")
+        feats.append(f"ind{j}"); labels.append("unassigned")
     X = np.column_stack(cols)
     y = (lat[0] + lat[1] - lat[2] > 0).astype(int)
     return X, y, feats, labels
@@ -70,7 +70,7 @@ def experiment_shap_dtype():
 
 
 def run_backend(X, y, feats, labels):
-    """Mirror what R's sf(backend='python') does: screen -> assemble -> select."""
+    """Mirror what R's bf(backend='python') does: screen -> assemble -> select."""
     module_list = list(dict.fromkeys(labels))
     scr = bk.run_screen_rfe(
         X_mat=X.astype(np.float64), y=y, feature_names=feats,
@@ -92,7 +92,7 @@ def run_backend(X, y, feats, labels):
         nodesize=1, classification=True, seed=SEED, n_jobs=1, max_modsize=5000,
         n_boots=30, pi_thr=0.4, shadow_mode="split", shadow_percentile=95,
         module_assignments_surv=[surv_mod[f] for f in order],
-        indep_modules=["independent"], verbose=False)
+        unassigned_modules=["unassigned"], verbose=False)
     survivors = {m: sorted(sfeats) for m, sfeats in zip(module_list, scr["survivor_features"])}
     return survivors, sel
 
@@ -107,8 +107,8 @@ def main():
     # ── package ──
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=100)
     sl = select_control(n_boots=30, min_ntree=100, pi_thr=0.4,
-                        shadow_mode="split", indep_modules=["independent"])
-    res = sf(Xdf, y, module_membership=mm, screen_params=sc, select_params=sl,
+                        shadow_mode="split", unassigned_modules=["unassigned"])
+    res = bf(Xdf, y, module_membership=mm, screen_params=sc, select_params=sl,
              final_ntree=100, verbose=0, seed=SEED, num_processors=1)
     pkg_surv = {m: sorted(res.survivor_list[m]["features"]) for m in res.survivor_list}
     pkg_sel  = list(res.final_SHAP["feature_name"])

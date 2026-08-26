@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
-# R reticulate-backend benchmark for ShapleyForest.
+# R reticulate-backend benchmark for BonsaiForest.
 #
-# Times the R package's sf(..., backend="python") path, which calls
-# inst/python/sf_python_backend.py through reticulate. Loaded via
+# Times the R package's bf(..., backend="python") path, which calls
+# inst/python/bf_python_backend.py through reticulate. Loaded via
 # devtools::load_all so the in-tree (updated) backend is used.
 #
 # Usage:  Rscript bench_r_reticulate.R <sf_dev_path> <num_processors> <seed>
@@ -27,7 +27,7 @@ for (m in 1:4) for (j in 1:12) {
 for (j in 1:16) {
   cols[[length(cols) + 1]] <- rnorm(n)
   feats  <- c(feats,  sprintf("ind%d", j - 1))
-  labels <- c(labels, "independent")
+  labels <- c(labels, "unassigned")
 }
 X  <- as.data.frame(setNames(cols, feats))
 y  <- as.factor(as.integer((lat[[1]] + lat[[2]] - lat[[3]]) > 0))
@@ -35,10 +35,10 @@ mm <- setNames(labels, feats)
 
 sc <- screen_control(drop_fraction = 0.3, keep_fraction = 0.5, min_ntree = 150L)
 sl <- select_control(n_boots = 30L, min_ntree = 150L, pi_thr = 0.4,
-                     shadow_mode = "split", indep_modules = "independent")
+                     shadow_mode = "split", unassigned_modules = "unassigned")
 
 t0  <- Sys.time()
-res <- sf(X, y, module_membership = mm, screen_params = sc, select_params = sl,
+res <- bf(X, y, module_membership = mm, screen_params = sc, select_params = sl,
           final_ntree = 150L, num_processors = num_processors,
           verbose = 0L, seed = seed, backend = "python")
 dt  <- as.numeric(difftime(Sys.time(), t0, units = "secs"))

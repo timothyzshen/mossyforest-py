@@ -1,13 +1,13 @@
 """
-Double Machine Learning (DML) — cross-fitted y residualization.
+cross-fit residualization (cfRes) — cross-fitted y residualization.
 
-Matches the _cross_fit_residuals() function from sf_python_backend.py v18.
+Matches the _cross_fit_residuals() function from bf_python_backend.py v18.
 
-Unlike the old Python code (which residualized X), this matches R's DML:
+Unlike the old Python code (which residualized X), this matches R's cfRes:
   y_resid = y - RF_cv(X_corr)
 
 After residualization, y_resid ≈ theta * X_ind + eps, boosting the SNR
-for independent-pool shadow stability.
+for unassigned-pool shadow stability.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def cross_fit_residuals(
     n_jobs: int = 1,
 ) -> np.ndarray:
     """
-    Robinson / DML cross-fitted residualization.
+    Robinson / cfRes cross-fitted residualization.
 
     Each observation's predicted value comes from a model trained on the
     other K-1 folds (no obs influences its own residual).

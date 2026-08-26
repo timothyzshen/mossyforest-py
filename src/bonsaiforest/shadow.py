@@ -14,9 +14,9 @@ stability_freq(j) = |selected_b| / n_valid_boots
 
 Thresholding:
   corr pool: stable = { j : freq(j) >= pi_thr }
-  ind  pool: elbow detection (or pi_thr_indep if given)
+  ind  pool: elbow detection (or pi_thr_unassigned if given)
 
-Matches _boruta_shadow_stability() from sf_python_backend.py v18.
+Matches _boruta_shadow_stability() from bf_python_backend.py v18.
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ def find_elbow_idx(freqs_sorted: list | np.ndarray) -> int:
     last point, and returns the 0-based index of the point furthest from
     that chord (the elbow).
 
-    Matches _find_elbow_idx() in sf_python_backend.py v18.
+    Matches _find_elbow_idx() in bf_python_backend.py v18.
     """
     freqs = np.asarray(freqs_sorted, dtype=np.float64)
     n     = len(freqs)

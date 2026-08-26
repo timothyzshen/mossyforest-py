@@ -1,8 +1,8 @@
 """
-Unit tests for ShapleyForest core components.
+Unit tests for BonsaiForest core components.
 
 Tests are written against the new two-phase API that exactly mirrors
-the R package's sf() / sf_python_backend.py v18.
+the R package's bf() / bf_python_backend.py v18.
 """
 
 from __future__ import annotations
@@ -11,21 +11,21 @@ import numpy as np
 import pytest
 from unittest.mock import patch
 
-from shapleyforest import (
-    ShapleyForest,
+from bonsaiforest import (
+    BonsaiForest,
     screen_control,
     select_control,
     WGCNA_control,
 )
-from shapleyforest.shadow import (
+from bonsaiforest.shadow import (
     make_shadow_matrix,
     boruta_shadow_stability,
     apply_stable_threshold,
     find_elbow_idx,
 )
-from shapleyforest.stability import StabilityTracker
-from shapleyforest.dml import cross_fit_residuals
-from shapleyforest.rfe import rfe_loop, _compute_mtry, _compute_ntree
+from bonsaiforest.stability import StabilityTracker
+from bonsaiforest.cfres import cross_fit_residuals
+from bonsaiforest.rfe import rfe_loop, _compute_mtry, _compute_ntree
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -63,13 +63,13 @@ def test_select_control_defaults():
     assert sl.shadow_mode       == "split"
     assert sl.n_boots           == 50
     assert sl.pi_thr            == 0.60
-    assert sl.pi_thr_indep      is None
+    assert sl.pi_thr_unassigned      is None
     assert sl.threshold_mode    == "pi_thr"
     assert sl.shadow_percentile == 95.0
-    assert sl.use_dml_residual  is False
-    assert sl.dml_n_folds       == 5
-    assert sl.dml_ntree         == 300
-    assert sl.dml_scope         == "indep"
+    assert sl.use_cfres  is False
+    assert sl.cfres_n_folds       == 5
+    assert sl.cfres_ntree         == 300
+    assert sl.cfres_scope         == "unassigned"
 
 
 def test_screen_control_bad_drop():
@@ -82,9 +82,9 @@ def test_select_control_bad_shadow_mode():
         select_control(shadow_mode="bad")
 
 
-def test_select_control_bad_dml_scope():
-    with pytest.raises(ValueError, match="dml_scope"):
-        select_control(dml_scope="bad")
+def test_select_control_bad_cfres_scope():
+    with pytest.raises(ValueError, match="cfres_scope"):
+        select_control(cfres_scope="bad")
 
 
 def test_select_control_bad_threshold_mode():
@@ -94,10 +94,10 @@ def test_select_control_bad_threshold_mode():
 
 
 
-# ── ShapleyForest instantiation ───────────────────────────────────────────────
+# ── BonsaiForest instantiation ───────────────────────────────────────────────
 
 def test_instantiation():
-    model = ShapleyForest()
+    model = BonsaiForest()
     assert model.final_ntree == 500
     assert model.n_jobs      == 1
 
@@ -105,7 +105,7 @@ def test_instantiation():
 def test_instantiation_custom_params():
     sc = screen_control(drop_fraction=0.30, keep_fraction=0.40)
     sl = select_control(n_boots=20, pi_thr=0.70, shadow_mode="within_module")
-    model = ShapleyForest(screen_params=sc, select_params=sl, final_ntree=200)
+    model = BonsaiForest(screen_params=sc, select_params=sl, final_ntree=200)
     assert model.screen_params.drop_fraction == 0.30
     assert model.select_params.n_boots       == 20
     assert model.final_ntree                 == 200
@@ -113,7 +113,7 @@ def test_instantiation_custom_params():
 
 def test_fit_requires_module_membership(classification_data):
     X, y = classification_data
-    model = ShapleyForest()
+    model = BonsaiForest()
     with pytest.raises(ValueError, match="module_membership"):
         model.fit(X, y)
 
@@ -212,7 +212,7 @@ def test_rfe_loop_survivor_names_are_subset(classification_data):
     assert all(f in feat_names for f in survivors)
 
 
-# ── DML cross-fitted residualization ─────────────────────────────────────────
+# ── cfRes cross-fitted residualization ─────────────────────────────────────────
 
 def test_cross_fit_residuals_shape(regression_data):
     X, y = regression_data
@@ -278,7 +278,7 @@ def test_boruta_shadow_stability_returns_all_features(classification_data):
     assert all(freqs_sort[i] >= freqs_sort[i+1] for i in range(len(freqs_sort)-1))
 
 
-# ── ShapleyForest end-to-end (mocked Phase 1) ────────────────────────────────
+# ── BonsaiForest end-to-end (mocked Phase 1) ────────────────────────────────
 
 def _make_labels(n_feat, mods):
     """Create module_membership for n_feat features in equal chunks."""
@@ -298,18 +298,18 @@ def small_block_data():
     X    = np.column_stack([z + rng.standard_normal(n) * 0.3 for _ in range(10)]
                            + [rng.standard_normal(n) for _ in range(10)])
     y    = (z > 0).astype(int)
-    mods = ["A"] * 10 + ["independent"] * 10
+    mods = ["A"] * 10 + ["unassigned"] * 10
     return X, y, mods
 
 
-def test_shapleyforest_fit_runs(small_block_data):
-    """ShapleyForest.fit() must complete without errors."""
+def test_bonsaiforest_fit_runs(small_block_data):
+    """BonsaiForest.fit() must complete without errors."""
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, shadow_percentile=95,
                         pi_thr=0.4, shadow_mode="split",
-                        indep_modules=["independent"])
-    model = ShapleyForest(
+                        unassigned_modules=["unassigned"])
+    model = BonsaiForest(
         screen_params=sc, select_params=sl,
         final_ntree=20, random_state=42, verbose=0,
     )
@@ -318,36 +318,36 @@ def test_shapleyforest_fit_runs(small_block_data):
     assert hasattr(model, "selected_features_")
 
 
-def test_shapleyforest_transform(small_block_data):
+def test_bonsaiforest_transform(small_block_data):
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
-                        shadow_mode="split", indep_modules=["independent"])
-    model = ShapleyForest(screen_params=sc, select_params=sl,
+                        shadow_mode="split", unassigned_modules=["unassigned"])
+    model = BonsaiForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)
     model.fit(X, y, module_membership=mods)
     X_t = model.transform(X)
     assert X_t.shape == (X.shape[0], len(model.selected_features_))
 
 
-def test_shapleyforest_within_module(small_block_data):
+def test_bonsaiforest_within_module(small_block_data):
     """within_module shadow_mode must run without error."""
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
                         shadow_mode="within_module")
-    model = ShapleyForest(screen_params=sc, select_params=sl,
+    model = BonsaiForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=1, verbose=0)
     model.fit(X, y, module_membership=mods)
     assert hasattr(model, "result_")
 
 
-def test_shapleyforest_predict(small_block_data):
+def test_bonsaiforest_predict(small_block_data):
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
-                        shadow_mode="split", indep_modules=["independent"])
-    model = ShapleyForest(screen_params=sc, select_params=sl,
+                        shadow_mode="split", unassigned_modules=["unassigned"])
+    model = BonsaiForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)
     model.fit(X, y, module_membership=mods)
     preds = model.predict(X)
@@ -355,12 +355,12 @@ def test_shapleyforest_predict(small_block_data):
 
 
 def test_result_attributes(small_block_data):
-    """ShapleyForestResult must have all expected attributes."""
+    """BonsaiForestResult must have all expected attributes."""
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
-                        shadow_mode="split", indep_modules=["independent"])
-    model = ShapleyForest(screen_params=sc, select_params=sl,
+                        shadow_mode="split", unassigned_modules=["unassigned"])
+    model = BonsaiForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)
     model.fit(X, y, module_membership=mods)
     res = model.result_
@@ -386,8 +386,8 @@ def test_final_shap_columns(small_block_data):
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
-                        shadow_mode="split", indep_modules=["independent"])
-    model = ShapleyForest(screen_params=sc, select_params=sl,
+                        shadow_mode="split", unassigned_modules=["unassigned"])
+    model = BonsaiForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)
     model.fit(X, y, module_membership=mods)
     df = model.result_.final_SHAP

@@ -16,9 +16,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from shapleyforest import sf, screen_control, select_control
-from shapleyforest.threads import resolve_blas_threads
-from shapleyforest.shadow import make_shadow_matrix
+from bonsaiforest import bf, screen_control, select_control
+from bonsaiforest.threads import resolve_blas_threads
+from bonsaiforest.shadow import make_shadow_matrix
 
 
 # ── Shared data ───────────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ def block_data():
     ind   = rng.standard_normal((n, 6))
     X = np.hstack([mod_A, mod_B, ind])
     y = (z1 - z2 > 0).astype(int)
-    labels = ["A"] * 8 + ["B"] * 8 + ["independent"] * 6
+    labels = ["A"] * 8 + ["B"] * 8 + ["unassigned"] * 6
     feats  = ([f"A{i}" for i in range(8)] + [f"B{i}" for i in range(8)]
               + [f"ind{i}" for i in range(6)])
     return pd.DataFrame(X, columns=feats), y, dict(zip(feats, labels))
@@ -42,14 +42,14 @@ def block_data():
 def _params():
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
     sl = select_control(n_boots=12, min_ntree=30, pi_thr=0.4,
-                        shadow_mode="split", indep_modules=["independent"])
+                        shadow_mode="split", unassigned_modules=["unassigned"])
     return sc, sl
 
 
 def _run(block_data, n_jobs, **kw):
     X, y, mm = block_data
     sc, sl = _params()
-    return sf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    return bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
               final_ntree=30, num_processors=n_jobs, verbose=0, seed=123, **kw)
 
 
@@ -101,7 +101,7 @@ def test_interaction_lazy_then_cached(block_data):
 def test_interaction_disabled(block_data):
     X, y, mm = block_data
     sc, sl = _params()
-    r = sf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    r = bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
            final_ntree=30, verbose=0, seed=123, compute_interactions=False)
     assert r.interaction_matrix is None
     with pytest.raises(ValueError, match="No interaction matrix"):
@@ -114,10 +114,10 @@ def test_early_stop_runs(block_data):
     X, y, mm = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
     sl = select_control(n_boots=40, min_ntree=30, pi_thr=0.4,
-                        shadow_mode="split", indep_modules=["independent"],
+                        shadow_mode="split", unassigned_modules=["unassigned"],
                         early_stop_boots=True, early_stop_tol=0.05,
                         early_stop_check_every=5)
-    r = sf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    r = bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
            final_ntree=30, verbose=0, seed=7)
     # frequencies still valid in [0, 1]
     for f in r.stability_freq.values():
@@ -128,12 +128,12 @@ def test_early_stop_deterministic_across_workers(block_data):
     X, y, mm = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
     sl = select_control(n_boots=40, min_ntree=30, pi_thr=0.4,
-                        shadow_mode="split", indep_modules=["independent"],
+                        shadow_mode="split", unassigned_modules=["unassigned"],
                         early_stop_boots=True, early_stop_tol=0.05,
                         early_stop_check_every=5)
-    r1 = sf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    r1 = bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
             final_ntree=30, verbose=0, seed=7, num_processors=1)
-    r2 = sf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    r2 = bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
             final_ntree=30, verbose=0, seed=7, num_processors=3)
     assert r1.stability_freq == r2.stability_freq
 
@@ -202,5 +202,5 @@ def test_bad_shap_backend(block_data):
     X, y, mm = block_data
     sc, sl = _params()
     with pytest.raises(ValueError, match="shap_backend"):
-        sf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+        bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
            verbose=0, seed=1, shap_backend="bogus")

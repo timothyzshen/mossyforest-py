@@ -1,13 +1,13 @@
 """
-ShapleyForestResult — the return object from sf() / wsf().
+BonsaiForestResult — the return object from bf() / wbf().
 
-Matches the R shapley_forest S3 class in structure and methods:
+Matches the R bonsai_forest S3 class in structure and methods:
   - print()          → __repr__ / __str__
   - predict()        → predict(new_X)
   - detect_interaction()
   - All plot methods (see plots.py)
 
-Attributes mirror R's shapley_forest list slots.
+Attributes mirror R's bonsai_forest list slots.
 """
 
 from __future__ import annotations
@@ -16,9 +16,9 @@ import numpy as np
 import pandas as pd
 
 
-class ShapleyForestResult:
+class BonsaiForestResult:
     """
-    Result object returned by sf() and wsf().
+    Result object returned by bf() and wbf().
 
     Attributes
     ----------
@@ -29,7 +29,7 @@ class ShapleyForestResult:
     module_membership : pd.DataFrame
         Two-column DataFrame: feature_name, module.
     WGCNA_object : object or None
-        Raw PyWGCNA output (wsf only), else None.
+        Raw PyWGCNA output (wbf only), else None.
     survivor_list : dict
         Per-module screening survivors {module: DataFrame(features, vims)}.
     selection_list : list of pd.DataFrame
@@ -128,7 +128,7 @@ class ShapleyForestResult:
     def __repr__(self) -> str:
         n_stable = len(self.final_SHAP) if self.final_SHAP is not None else 0
         lines = [
-            "--- Shapley Forest ---",
+            "--- Bonsai Forest ---",
             f"Stable features selected: {n_stable}",
             "",
         ]
@@ -156,7 +156,7 @@ class ShapleyForestResult:
             - array-like with the same number of columns as the stable set:
               used directly.
             - array-like with more columns than the stable set: raises ValueError;
-              use a DataFrame or pass ShapleyForest.predict() which subsets for you.
+              use a DataFrame or pass BonsaiForest.predict() which subsets for you.
 
         Returns
         -------
@@ -171,7 +171,7 @@ class ShapleyForestResult:
                 raise ValueError(
                     f"new_X has {new_X.shape[1]} columns but the stable set has "
                     f"{len(stable_feats)} features. Pass a DataFrame with named "
-                    "columns, or use ShapleyForest.predict() which subsets automatically."
+                    "columns, or use BonsaiForest.predict() which subsets automatically."
                 )
         return self.final_rf.predict(new_X)
 

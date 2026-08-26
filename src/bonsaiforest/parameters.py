@@ -1,5 +1,5 @@
 """
-Parameter control objects for ShapleyForest.
+Parameter control objects for BonsaiForest.
 Exact replicas of R's screen_control(), select_control(), and WGCNA_control().
 """
 
@@ -94,12 +94,12 @@ class select_control:
     pi_thr : float
         Stability frequency threshold for the corr pool (used when
         threshold_mode="pi_thr"). Default 0.60.
-    pi_thr_indep : float or None
+    pi_thr_unassigned : float or None
         Threshold for the ind pool. None (default) = automatic elbow detection.
     threshold_mode : str
         How the per-pool selection cutoff is chosen.
         "pi_thr" (default) — correlated pool uses the fixed pi_thr; the
-            independent pool uses elbow detection (or pi_thr_indep). This
+            unassigned pool uses elbow detection (or pi_thr_unassigned). This
             matches the R package.
         "elbow" — BOTH pools use the same adaptive elbow rule (unified
             selection philosophy; a Python-only extension not in the R
@@ -107,18 +107,18 @@ class select_control:
     shadow_percentile : float
         Percentile of the shadow-feature distribution used as threshold
         within each bootstrap. Default 95.
-    indep_modules : list of str or None
-        Module names treated as the independent pool. None = no split-pool.
-    use_dml_residual : bool
+    unassigned_modules : list of str or None
+        Module names treated as the unassigned pool. None = no split-pool.
+    use_cfres : bool
         If True, cross-fitted RF residualizes y before the ind-pool (or
         per-module) stability step. Default False.
-    dml_n_folds : int
-        Cross-fitting folds for DML residualization. Default 5.
-    dml_ntree : int
-        Trees per fold-RF in DML residualization. Default 300.
-    dml_scope : str
-        "indep" — DML applied only to the independent pool (default).
-        "all_modules" — per-module DML applied to every module.
+    cfres_n_folds : int
+        Cross-fitting folds for cfRes residualization. Default 5.
+    cfres_ntree : int
+        Trees per fold-RF in cfRes residualization. Default 300.
+    cfres_scope : str
+        "unassigned" — cfRes applied only to the unassigned pool (default).
+        "all_modules" — per-module cfRes applied to every module.
     early_stop_boots : bool
         If True, stop the bootstrap loop early once selection frequencies
         converge (changes results by design — fewer effective boots).
@@ -139,14 +139,14 @@ class select_control:
     shadow_mode: str = "split"
     n_boots: int = 50
     pi_thr: float = 0.60
-    pi_thr_indep: Optional[float] = None
+    pi_thr_unassigned: Optional[float] = None
     threshold_mode: str = "pi_thr"
     shadow_percentile: float = 95.0
-    indep_modules: Optional[List[str]] = None
-    use_dml_residual: bool = False
-    dml_n_folds: int = 5
-    dml_ntree: int = 300
-    dml_scope: str = "indep"
+    unassigned_modules: Optional[List[str]] = None
+    use_cfres: bool = False
+    cfres_n_folds: int = 5
+    cfres_ntree: int = 300
+    cfres_scope: str = "unassigned"
     early_stop_boots: bool = False
     early_stop_tol: float = 0.01
     early_stop_check_every: int = 10
@@ -160,18 +160,18 @@ class select_control:
             raise ValueError("ntree_factor must be > 0")
         if self.threshold_mode not in ("pi_thr", "elbow"):
             raise ValueError("threshold_mode must be 'pi_thr' or 'elbow'")
-        if self.dml_scope not in ("indep", "all_modules"):
-            raise ValueError("dml_scope must be 'indep' or 'all_modules'")
+        if self.cfres_scope not in ("unassigned", "all_modules"):
+            raise ValueError("cfres_scope must be 'unassigned' or 'all_modules'")
         if not 0 <= self.pi_thr <= 1:
             raise ValueError("pi_thr must be in [0, 1]")
-        if self.pi_thr_indep is not None and not 0 <= self.pi_thr_indep <= 1:
-            raise ValueError("pi_thr_indep must be in [0, 1]")
+        if self.pi_thr_unassigned is not None and not 0 <= self.pi_thr_unassigned <= 1:
+            raise ValueError("pi_thr_unassigned must be in [0, 1]")
         if not 0 < self.shadow_percentile <= 100:
             raise ValueError("shadow_percentile must be in (0, 100]")
         if self.n_boots < 1:
             raise ValueError("n_boots must be >= 1")
-        if self.dml_n_folds < 2:
-            raise ValueError("dml_n_folds must be >= 2")
+        if self.cfres_n_folds < 2:
+            raise ValueError("cfres_n_folds must be >= 2")
         if self.early_stop_tol <= 0:
             raise ValueError("early_stop_tol must be > 0")
         if self.early_stop_check_every < 1:

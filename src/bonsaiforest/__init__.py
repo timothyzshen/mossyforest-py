@@ -1,11 +1,11 @@
 """
-ShapleyForest — network-aware stable feature selection via
+BonsaiForest — network-aware stable feature selection via
 Shapley-augmented random forests and shadow-stability selection.
 
 Primary API (matching R):
-    sf()             — two-phase feature selection
-    wsf()            — sf() with integrated WGCNA module detection
-    ShapleyForest    — sklearn-compatible estimator wrapper
+    bf()             — two-phase feature selection
+    wbf()            — bf() with integrated WGCNA module detection
+    BonsaiForest    — sklearn-compatible estimator wrapper
 
 Parameter objects:
     screen_control   — Phase 1 (screening RFE) parameters
@@ -26,9 +26,9 @@ Utilities:
     check_blas, check_numba
 """
 
-from .core import sf, wsf, ShapleyForest
+from .core import bf, wbf, BonsaiForest
 from .parameters import screen_control, select_control, WGCNA_control
-from .result import ShapleyForestResult
+from .result import BonsaiForestResult
 from .modules import detect_modules, pick_soft_threshold
 from .plots import (
     plot_importance,
@@ -48,9 +48,9 @@ from .cache import clear_memory_cache
 
 __all__ = [
     # main API
-    "sf",
-    "wsf",
-    "ShapleyForest",
+    "bf",
+    "wbf",
+    "BonsaiForest",
     # screening cache
     "clear_memory_cache",
     # parameter objects
@@ -58,7 +58,7 @@ __all__ = [
     "select_control",
     "WGCNA_control",
     # result object
-    "ShapleyForestResult",
+    "BonsaiForestResult",
     # module detection
     "detect_modules",
     "pick_soft_threshold",

@@ -1,5 +1,5 @@
 """
-Plotting utilities for ShapleyForestResult.
+Plotting utilities for BonsaiForestResult.
 
 Python equivalents of all R shapff_plot.R functions:
   plot_importance()         — bar or beeswarm (shap summary)
@@ -39,7 +39,7 @@ def plot_importance(
     """
     Feature importance plot — bar or beeswarm.
 
-    Matches R's plot_importance.shapley_forest().
+    Matches R's plot_importance.bonsai_forest().
 
     Parameters
     ----------
@@ -136,7 +136,7 @@ def plot_waterfall(
     """
     SHAP waterfall plot for one or more observations.
 
-    Matches R's plot_waterfall.shapley_forest().
+    Matches R's plot_waterfall.bonsai_forest().
     When multiple row_ids are given, SHAP values are averaged.
     """
     import shap as _shap
@@ -186,7 +186,7 @@ def plot_force(
     """
     SHAP force plot for one or more observations.
 
-    Matches R's plot_force.shapley_forest().
+    Matches R's plot_force.bonsai_forest().
     """
     import shap as _shap
 
@@ -233,7 +233,7 @@ def plot_stability(
     """
     Horizontal bar chart of shadow-stability selection frequencies.
 
-    Matches R's plot_stability.shapley_forest().
+    Matches R's plot_stability.bonsai_forest().
     """
     freq_dict = result.stability_freq
     if not freq_dict:
@@ -273,13 +273,13 @@ def plot_stability_elbow(
     """
     Per-pool stability frequency curves with threshold and elbow lines.
 
-    Matches R's plot_stability_elbow.shapley_forest().
+    Matches R's plot_stability_elbow.bonsai_forest().
     """
     sd = result.stability_data
     if sd is None or len(sd) == 0:
         raise ValueError(
             "No stability selection data in this result. "
-            "Refit with sf() to populate stability_data."
+            "Refit with bf() to populate stability_data."
         )
 
     pools = sd["pool"].unique()
@@ -341,7 +341,7 @@ def plot_potential_interactions(result) -> plt.Figure:
     """
     Heatmap of mean absolute TreeSHAP pairwise interaction strengths.
 
-    Matches R's plot_potential_interactions.shapley_forest().
+    Matches R's plot_potential_interactions.bonsai_forest().
     """
     int_mat = result.interaction_matrix   # lazy: computes + caches on first access
     if int_mat is None:
@@ -397,7 +397,7 @@ def plot_decisions(
     """
     Cumulative SHAP decision plot.
 
-    Matches R's plot_decisions.shapley_forest().
+    Matches R's plot_decisions.bonsai_forest().
     """
     if just_shap:
         if not isinstance(result, (np.ndarray, pd.DataFrame)):
@@ -471,7 +471,7 @@ def plot_modules(
     """
     Stacked bar chart of selected vs not-selected proportion per module.
 
-    Matches R's plot_modules.shapley_forest().
+    Matches R's plot_modules.bonsai_forest().
     """
     mm = result.module_membership.copy()   # feature_name, module
 
@@ -518,7 +518,7 @@ def plot_elbow(
     """
     Scree/elbow plot of mean |SHAP| by stable feature rank.
 
-    Matches R's plot_elbow.shapley_forest().
+    Matches R's plot_elbow.bonsai_forest().
     """
     df = result.final_SHAP.copy()
 

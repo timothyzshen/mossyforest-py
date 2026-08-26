@@ -1,7 +1,7 @@
 """
 R <-> Python end-to-end parity harness.
 
-Runs the standalone Python package and the R package's sf(backend="python")
+Runs the standalone Python package and the R package's bf(backend="python")
 on IDENTICAL data + seed, with R's reticulate pinned to the same Python
 interpreter as the package (so any difference is algorithmic, not a
 library-version artifact). Reports set overlap and per-feature frequency
@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from shapleyforest import sf, screen_control, select_control
+from bonsaiforest import bf, screen_control, select_control
 
 SEED   = 42
 SF_DEV = "/Users/tzshen/Documents/Github/sf_dev"
@@ -39,7 +39,7 @@ def make_data(seed=0):
             feats.append(f"M{m}_{j}"); labels.append(f"M{m}")
     for j in range(10):
         cols.append(rng.standard_normal(n))
-        feats.append(f"ind{j}"); labels.append("independent")
+        feats.append(f"ind{j}"); labels.append("unassigned")
     X = pd.DataFrame(np.column_stack(cols), columns=feats)
     y = ((lat[0] + lat[1] - lat[2]) > 0).astype(int)
     return X, y, dict(zip(feats, labels))
@@ -51,8 +51,8 @@ def main():
     # ── Python package ────────────────────────────────────────────────────────
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=100)
     sl = select_control(n_boots=30, min_ntree=100, pi_thr=0.4,
-                        shadow_mode="split", indep_modules=["independent"])
-    res = sf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+                        shadow_mode="split", unassigned_modules=["unassigned"])
+    res = bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
              final_ntree=100, num_processors=1, verbose=0, seed=SEED)
     py_sel  = list(res.final_SHAP["feature_name"])
     py_freq = dict(res.stability_freq)

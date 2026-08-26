@@ -3,11 +3,11 @@ Phase-1 (screening) result cache.
 
 Screening depends only on X, y, module membership, screen_params, nodesize,
 classification, seed, max_modsize, and the SHAP backend — NOT on select_params.
-The common tuning / cross-validation workflow re-runs sf() many times varying
+The common tuning / cross-validation workflow re-runs bf() many times varying
 only select_params (pi_thr, shadow_percentile, n_boots, ...), so caching Phase 1
 lets those runs skip screening entirely.
 
-Two backends, chosen via the `screen_cache` argument to sf():
+Two backends, chosen via the `screen_cache` argument to bf():
   None / False  → no caching (default; current behaviour)
   True          → in-process memory cache (persists for the Python session)
   str / Path    → on-disk cache directory (persists across sessions)

@@ -1,9 +1,9 @@
-# shapleyforest
+# bonsaiforest
 
 Network-aware stable feature selection via Shapley Values and random forests.
 
-`shapleyforest` is the Python implementation of the R
-[shapleyforest](https://github.com/timothyzshen/shapleyforest) package. It is a
+`bonsaiforest` is the Python implementation of the R
+[bonsaiforest](https://github.com/timothyzshen/bonsaiforest) package. It is a
 bit-exact replica of the R algorithm (verified — see
 [Parity](#parity-with-the-r-package)). It is recommended to use this package for large
 high dimensional data sets.
@@ -30,7 +30,7 @@ pip install -e ".[dev]"     # test / lint tooling
 ```
 
 Requires Python ≥3.9, numpy, pandas, scikit-learn, shap. Module detection
-(`wsf`) additionally needs [PyWGCNA](https://github.com/mortazavilab/PyWGCNA).
+(`wbf`) additionally needs [PyWGCNA](https://github.com/mortazavilab/PyWGCNA).
 
 ---
 
@@ -38,10 +38,10 @@ Requires Python ≥3.9, numpy, pandas, scikit-learn, shap. Module detection
 
 ```python
 import numpy as np, pandas as pd
-from shapleyforest import sf, screen_control, select_control
+from bonsaiforest import bf, screen_control, select_control
 
 # X: samples x features (DataFrame keeps feature names); y: int/bool = classification
-res = sf(
+res = bf(
     X, y,
     module_membership = {"gene1": "M1", "gene2": "M1", "gene3": "M2", ...},
     screen_params = screen_control(),      # Phase 1 defaults
@@ -59,16 +59,16 @@ res.detect_interaction(thresh=0.01)        # pairwise TreeSHAP interactions
 ### With automatic WGCNA module detection
 
 ```python
-from shapleyforest import wsf, WGCNA_control
-res = wsf(X, y, WGCNA_params=WGCNA_control(power=6, min_features=20))
+from bonsaiforest import wbf, WGCNA_control
+res = wbf(X, y, WGCNA_params=WGCNA_control(power=6, min_features=20))
 res.WGCNA_object                           # raw module labels
 ```
 
 ### sklearn-compatible estimator
 
 ```python
-from shapleyforest import ShapleyForest
-model = ShapleyForest(n_jobs=4, random_state=42)
+from bonsaiforest import BonsaiForest
+model = BonsaiForest(n_jobs=4, random_state=42)
 model.fit(X, y, module_membership=mm)
 model.transform(X)          # X reduced to stable features
 model.predict(X_new)
@@ -90,17 +90,17 @@ model.predict(X_new)
 ### `select_control` — Phase 2 (shadow stability)
 | param | default | meaning |
 |---|---|---|
-| `shadow_mode` | `"split"` | `"split"` (corr + independent pools) or `"within_module"` |
+| `shadow_mode` | `"split"` | `"split"` (corr + unassigned pools) or `"within_module"` |
 | `n_boots` | 50 | bootstrap replicates |
 | `pi_thr` | 0.60 | stability threshold for the correlated pool |
-| `pi_thr_indep` | `None` | independent-pool threshold (`None` = elbow detection) |
+| `pi_thr_unassigned` | `None` | unassigned-pool threshold (`None` = elbow detection) |
 | `shadow_percentile` | 95 | percentile of the shadow null used as the cutoff |
-| `indep_modules` | `None` | module names treated as the independent pool |
-| `use_dml_residual` | `False` | cross-fitted DML residualization of `y` |
-| `dml_scope` | `"indep"` | `"indep"` or `"all_modules"` |
+| `unassigned_modules` | `None` | module names treated as the unassigned pool |
+| `use_cfres` | `False` | cross-fitted cfRes residualization of `y` |
+| `cfres_scope` | `"unassigned"` | `"unassigned"` or `"all_modules"` |
 | `early_stop_boots` | `False` | stop bootstraps early once frequencies converge |
 
-### `sf()` execution / performance
+### `bf()` execution / performance
 | param | default | meaning |
 |---|---|---|
 | `num_processors` | 1 | parallel workers for bootstraps + modules |
@@ -112,7 +112,7 @@ model.predict(X_new)
 
 ---
 
-## Result object (`ShapleyForestResult`)
+## Result object (`BonsaiForestResult`)
 
 | attribute / method | description |
 |---|---|
@@ -131,7 +131,7 @@ model.predict(X_new)
 ## Plots
 
 ```python
-from shapleyforest import (
+from bonsaiforest import (
     plot_importance, plot_waterfall, plot_force, plot_stability,
     plot_stability_elbow, plot_potential_interactions, plot_decisions,
     plot_modules, plot_elbow, plot_soft_threshold,
@@ -153,7 +153,7 @@ python benchmarks/parity_in_process.py       # bit-exact parity vs the R backend
 
 ## Parity with the R package
 
-`shapleyforest` (Python) is a bit-exact replica of the R package. Verified in
+`bonsaiforest` (Python) is a bit-exact replica of the R package. Verified in
 one process on identical data/seed/stack, the two agree exactly:
 
 - screening survivors identical, selected set identical

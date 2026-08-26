@@ -3,7 +3,7 @@ Module detection via PyWGCNA.
 
 Wraps the real PyWGCNA API to return a simple array of module labels
 aligned with the columns of X.  The "grey" module (unassigned genes)
-is relabelled "independent" to match the R package convention.
+is relabelled "unassigned" to match the R package convention.
 
 PyWGCNA API reference:
     https://github.com/mortazavilab/PyWGCNA
@@ -61,7 +61,7 @@ def detect_modules(
     Returns
     -------
     labels : np.ndarray of shape (n_features,), dtype str
-        Module name per feature. Unassigned features → "independent".
+        Module name per feature. Unassigned features → "unassigned".
     """
     try:
         import PyWGCNA
@@ -86,7 +86,7 @@ def detect_modules(
     )
 
     wgcna = PyWGCNA.WGCNA(
-        name="shapleyforest",
+        name="bonsaiforest",
         geneExp=gene_expr_df,
         TPMcutoff=0,            # data already preprocessed — no TPM filter
         RsquaredCut=r2_threshold,
@@ -119,8 +119,8 @@ def detect_modules(
         [label_map.get(str(f), "grey") for f in feature_names], dtype=object
     )
 
-    # Recode grey (unassigned) → "independent" to match the R package convention.
-    labels = np.where(raw_labels == "grey", "independent", raw_labels).astype(str)
+    # Recode grey (unassigned) → "unassigned" to match the R package convention.
+    labels = np.where(raw_labels == "grey", "unassigned", raw_labels).astype(str)
     return labels
 
 
