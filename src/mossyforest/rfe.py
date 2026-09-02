@@ -1,7 +1,7 @@
 """
 RFE loop, blockwise reduction, and shared RF/SHAP helpers.
 
-All helpers here match the Python backend (bf_python_backend.py v18) used
+All helpers here match the Python backend (mf_python_backend.py v18) used
 by the R package.
 """
 
@@ -73,7 +73,7 @@ def _tree_explainer(rf, backend: str = "shap"):
         except ImportError as e:   # pragma: no cover - optional dep
             raise ImportError(
                 "shap_backend='fasttreeshap' requires the fasttreeshap package.\n"
-                "Install with: pip install fasttreeshap   (or pip install bonsaiforest[fast])\n"
+                "Install with: pip install fasttreeshap   (or pip install mossyforest[fast])\n"
                 "NOTE: fasttreeshap needs shap<0.46 + numpy<2, which require "
                 "Python <=3.11. On Python 3.12+ keep the default shap_backend='shap'."
             ) from e

@@ -1,5 +1,5 @@
 """
-Plotting utilities for BonsaiForestResult.
+Plotting utilities for MossyForestResult.
 
 Python equivalents of all R shapff_plot.R functions:
   plot_importance()         — bar or beeswarm (shap summary)
@@ -39,7 +39,7 @@ def plot_importance(
     """
     Feature importance plot — bar or beeswarm.
 
-    Matches R's plot_importance.bonsai_forest().
+    Matches R's plot_importance.mossy_forest().
 
     Parameters
     ----------
@@ -136,7 +136,7 @@ def plot_waterfall(
     """
     SHAP waterfall plot for one or more observations.
 
-    Matches R's plot_waterfall.bonsai_forest().
+    Matches R's plot_waterfall.mossy_forest().
     When multiple row_ids are given, SHAP values are averaged.
     """
     import shap as _shap
@@ -186,7 +186,7 @@ def plot_force(
     """
     SHAP force plot for one or more observations.
 
-    Matches R's plot_force.bonsai_forest().
+    Matches R's plot_force.mossy_forest().
     """
     import shap as _shap
 
@@ -233,7 +233,7 @@ def plot_stability(
     """
     Horizontal bar chart of shadow-stability selection frequencies.
 
-    Matches R's plot_stability.bonsai_forest().
+    Matches R's plot_stability.mossy_forest().
     """
     freq_dict = result.stability_freq
     if not freq_dict:
@@ -273,13 +273,13 @@ def plot_stability_elbow(
     """
     Per-pool stability frequency curves with threshold and elbow lines.
 
-    Matches R's plot_stability_elbow.bonsai_forest().
+    Matches R's plot_stability_elbow.mossy_forest().
     """
     sd = result.stability_data
     if sd is None or len(sd) == 0:
         raise ValueError(
             "No stability selection data in this result. "
-            "Refit with bf() to populate stability_data."
+            "Refit with mf() to populate stability_data."
         )
 
     pools = sd["pool"].unique()
@@ -341,7 +341,7 @@ def plot_potential_interactions(result) -> plt.Figure:
     """
     Heatmap of mean absolute TreeSHAP pairwise interaction strengths.
 
-    Matches R's plot_potential_interactions.bonsai_forest().
+    Matches R's plot_potential_interactions.mossy_forest().
     """
     int_mat = result.interaction_matrix   # lazy: computes + caches on first access
     if int_mat is None:
@@ -397,7 +397,7 @@ def plot_decisions(
     """
     Cumulative SHAP decision plot.
 
-    Matches R's plot_decisions.bonsai_forest().
+    Matches R's plot_decisions.mossy_forest().
     """
     if just_shap:
         if not isinstance(result, (np.ndarray, pd.DataFrame)):
@@ -471,7 +471,7 @@ def plot_modules(
     """
     Stacked bar chart of selected vs not-selected proportion per module.
 
-    Matches R's plot_modules.bonsai_forest().
+    Matches R's plot_modules.mossy_forest().
     """
     mm = result.module_membership.copy()   # feature_name, module
 
@@ -518,7 +518,7 @@ def plot_elbow(
     """
     Scree/elbow plot of mean |SHAP| by stable feature rank.
 
-    Matches R's plot_elbow.bonsai_forest().
+    Matches R's plot_elbow.mossy_forest().
     """
     df = result.final_SHAP.copy()
 
@@ -564,9 +564,12 @@ def plot_elbow(
 def plot_signed_importance(
     result,
     top_n: int | None = None,
-    pos_color: str = "#d6604d",
-    neg_color: str = "#4393c3",
+    pos_color: str = "#4393c3",
+    neg_color: str = "#d6604d",
     ambiguous_color: str = "#bbbbbb",
+    pos_label: str = "increase",
+    neg_label: str = "decrease",
+    ambiguous_label: str = "ambiguous",
     ax: plt.Axes | None = None,
 ) -> plt.Axes:
     """
@@ -574,7 +577,7 @@ def plot_signed_importance(
 
     Magnitude is mean|SHAP|; sign is the global effect direction (from the
     Spearman correlation between each feature's value and its SHAP value).
-    Bars to the right promote the outcome, to the left suppress it. Features
+    Bars to the right increase the outcome, to the left decrease it. Features
     whose direction is ambiguous (non-monotone: |Spearman| < 0.1) are greyed
     out — for those a single direction is misleading; use a SHAP dependence
     plot instead.
@@ -609,9 +612,9 @@ def plot_signed_importance(
     # legend
     from matplotlib.patches import Patch
     ax.legend(handles=[
-        Patch(color=pos_color, label="promotes outcome (+)"),
-        Patch(color=neg_color, label="suppresses outcome (−)"),
-        Patch(color=ambiguous_color, label="ambiguous (non-monotone)"),
+        Patch(color=pos_color, label=f"{pos_label} (+)"),
+        Patch(color=neg_color, label=f"{neg_label} (−)"),
+        Patch(color=ambiguous_color, label=f"{ambiguous_label} (non-monotone)"),
     ], fontsize=8, loc="lower right")
     plt.tight_layout()
     plt.show()

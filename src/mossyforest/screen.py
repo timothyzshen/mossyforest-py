@@ -4,7 +4,7 @@ Phase 1: Per-module Screening RFE.
 Runs rfe_loop on each module independently on the FULL dataset (no bootstrap).
 Retains keep_fraction of each module's features as candidates for Phase 2.
 
-Matches run_screen_rfe() from bf_python_backend.py v18.
+Matches run_screen_rfe() from mf_python_backend.py v18.
 """
 
 from __future__ import annotations

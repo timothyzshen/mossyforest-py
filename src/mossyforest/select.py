@@ -4,7 +4,7 @@ Phase 2: Shadow-stability selection + single-shot RF/SHAP.
 Implements shadow_mode = "split" and "within_module", cfRes y-residualization,
 and the v18 single-shot final RF + TreeSHAP + interaction matrix.
 
-Matches run_select_rfe() from bf_python_backend.py v18.
+Matches run_select_rfe() from mf_python_backend.py v18.
 """
 
 from __future__ import annotations
@@ -405,7 +405,7 @@ def run_select_rfe(
     # ── TreeSHAP interaction matrix is computed LAZILY ────────────────────────
     # The interaction call is ~p× the cost of regular SHAP, so we defer it: the
     # ingredients (fitted RF, stable submatrix, final ordering) are returned and
-    # BonsaiForestResult.interaction_matrix computes + caches on first access.
+    # MossyForestResult.interaction_matrix computes + caches on first access.
     # `compute_interactions=False` disables it entirely (and drops the retained RF
     # to save memory).
     return {

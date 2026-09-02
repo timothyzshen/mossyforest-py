@@ -1,8 +1,8 @@
 """
-Unit tests for BonsaiForest core components.
+Unit tests for MossyForest core components.
 
 Tests are written against the new two-phase API that exactly mirrors
-the R package's bf() / bf_python_backend.py v18.
+the R package's mf() / mf_python_backend.py v18.
 """
 
 from __future__ import annotations
@@ -11,21 +11,21 @@ import numpy as np
 import pytest
 from unittest.mock import patch
 
-from bonsaiforest import (
-    BonsaiForest,
+from mossyforest import (
+    MossyForest,
     screen_control,
     select_control,
     WGCNA_control,
 )
-from bonsaiforest.shadow import (
+from mossyforest.shadow import (
     make_shadow_matrix,
     boruta_shadow_stability,
     apply_stable_threshold,
     find_elbow_idx,
 )
-from bonsaiforest.stability import StabilityTracker
-from bonsaiforest.cfres import cross_fit_residuals
-from bonsaiforest.rfe import rfe_loop, _compute_mtry, _compute_ntree
+from mossyforest.stability import StabilityTracker
+from mossyforest.cfres import cross_fit_residuals
+from mossyforest.rfe import rfe_loop, _compute_mtry, _compute_ntree
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -94,10 +94,10 @@ def test_select_control_bad_threshold_mode():
 
 
 
-# ── BonsaiForest instantiation ───────────────────────────────────────────────
+# ── MossyForest instantiation ───────────────────────────────────────────────
 
 def test_instantiation():
-    model = BonsaiForest()
+    model = MossyForest()
     assert model.final_ntree == 500
     assert model.n_jobs      == 1
 
@@ -105,7 +105,7 @@ def test_instantiation():
 def test_instantiation_custom_params():
     sc = screen_control(drop_fraction=0.30, keep_fraction=0.40)
     sl = select_control(n_boots=20, pi_thr=0.70, shadow_mode="within_module")
-    model = BonsaiForest(screen_params=sc, select_params=sl, final_ntree=200)
+    model = MossyForest(screen_params=sc, select_params=sl, final_ntree=200)
     assert model.screen_params.drop_fraction == 0.30
     assert model.select_params.n_boots       == 20
     assert model.final_ntree                 == 200
@@ -113,7 +113,7 @@ def test_instantiation_custom_params():
 
 def test_fit_requires_module_membership(classification_data):
     X, y = classification_data
-    model = BonsaiForest()
+    model = MossyForest()
     with pytest.raises(ValueError, match="module_membership"):
         model.fit(X, y)
 
@@ -278,7 +278,7 @@ def test_boruta_shadow_stability_returns_all_features(classification_data):
     assert all(freqs_sort[i] >= freqs_sort[i+1] for i in range(len(freqs_sort)-1))
 
 
-# ── BonsaiForest end-to-end (mocked Phase 1) ────────────────────────────────
+# ── MossyForest end-to-end (mocked Phase 1) ────────────────────────────────
 
 def _make_labels(n_feat, mods):
     """Create module_membership for n_feat features in equal chunks."""
@@ -302,14 +302,14 @@ def small_block_data():
     return X, y, mods
 
 
-def test_bonsaiforest_fit_runs(small_block_data):
-    """BonsaiForest.fit() must complete without errors."""
+def test_mossyforest_fit_runs(small_block_data):
+    """MossyForest.fit() must complete without errors."""
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, shadow_percentile=95,
                         pi_thr=0.4, shadow_mode="split",
                         unassigned_modules=["unassigned"])
-    model = BonsaiForest(
+    model = MossyForest(
         screen_params=sc, select_params=sl,
         final_ntree=20, random_state=42, verbose=0,
     )
@@ -318,36 +318,36 @@ def test_bonsaiforest_fit_runs(small_block_data):
     assert hasattr(model, "selected_features_")
 
 
-def test_bonsaiforest_transform(small_block_data):
+def test_mossyforest_transform(small_block_data):
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
-    model = BonsaiForest(screen_params=sc, select_params=sl,
+    model = MossyForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)
     model.fit(X, y, module_membership=mods)
     X_t = model.transform(X)
     assert X_t.shape == (X.shape[0], len(model.selected_features_))
 
 
-def test_bonsaiforest_within_module(small_block_data):
+def test_mossyforest_within_module(small_block_data):
     """within_module shadow_mode must run without error."""
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
                         shadow_mode="within_module")
-    model = BonsaiForest(screen_params=sc, select_params=sl,
+    model = MossyForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=1, verbose=0)
     model.fit(X, y, module_membership=mods)
     assert hasattr(model, "result_")
 
 
-def test_bonsaiforest_predict(small_block_data):
+def test_mossyforest_predict(small_block_data):
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
-    model = BonsaiForest(screen_params=sc, select_params=sl,
+    model = MossyForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)
     model.fit(X, y, module_membership=mods)
     preds = model.predict(X)
@@ -355,12 +355,12 @@ def test_bonsaiforest_predict(small_block_data):
 
 
 def test_result_attributes(small_block_data):
-    """BonsaiForestResult must have all expected attributes."""
+    """MossyForestResult must have all expected attributes."""
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
-    model = BonsaiForest(screen_params=sc, select_params=sl,
+    model = MossyForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)
     model.fit(X, y, module_membership=mods)
     res = model.result_
@@ -387,7 +387,7 @@ def test_final_shap_columns(small_block_data):
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
     sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
-    model = BonsaiForest(screen_params=sc, select_params=sl,
+    model = MossyForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)
     model.fit(X, y, module_membership=mods)
     df = model.result_.final_SHAP

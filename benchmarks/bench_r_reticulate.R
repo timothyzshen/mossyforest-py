@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
-# R reticulate-backend benchmark for BonsaiForest.
+# R reticulate-backend benchmark for MossyForest.
 #
-# Times the R package's bf(..., backend="python") path, which calls
-# inst/python/bf_python_backend.py through reticulate. Loaded via
+# Times the R package's mf(..., backend="python") path, which calls
+# inst/python/mf_python_backend.py through reticulate. Loaded via
 # devtools::load_all so the in-tree (updated) backend is used.
 #
 # Usage:  Rscript bench_r_reticulate.R <sf_dev_path> <num_processors> <seed>
@@ -38,7 +38,7 @@ sl <- select_control(n_boots = 30L, min_ntree = 150L, pi_thr = 0.4,
                      shadow_mode = "split", unassigned_modules = "unassigned")
 
 t0  <- Sys.time()
-res <- bf(X, y, module_membership = mm, screen_params = sc, select_params = sl,
+res <- mf(X, y, module_membership = mm, screen_params = sc, select_params = sl,
           final_ntree = 150L, num_processors = num_processors,
           verbose = 0L, seed = seed, backend = "python")
 dt  <- as.numeric(difftime(Sys.time(), t0, units = "secs"))

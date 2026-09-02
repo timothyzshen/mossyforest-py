@@ -1,9 +1,9 @@
-# bonsaiforest
+# mossyforest
 
 Network-aware stable feature selection via Shapley Values and random forests.
 
-`bonsaiforest` is the Python implementation of the R
-[bonsaiforest](https://github.com/timothyzshen/bonsaiforest) package. It is a
+`mossyforest` is the Python implementation of the R
+[mossyforest](https://github.com/timothyzshen/mossyforest) package. It is a
 bit-exact replica of the R algorithm (verified — see
 [Parity](#parity-with-the-r-package)). It is recommended to use this package for large
 high dimensional data sets.
@@ -30,7 +30,7 @@ pip install -e ".[dev]"     # test / lint tooling
 ```
 
 Requires Python ≥3.9, numpy, pandas, scikit-learn, shap. Module detection
-(`wbf`) additionally needs [PyWGCNA](https://github.com/mortazavilab/PyWGCNA).
+(`wmf`) additionally needs [PyWGCNA](https://github.com/mortazavilab/PyWGCNA).
 
 ---
 
@@ -38,10 +38,10 @@ Requires Python ≥3.9, numpy, pandas, scikit-learn, shap. Module detection
 
 ```python
 import numpy as np, pandas as pd
-from bonsaiforest import bf, screen_control, select_control
+from mossyforest import mf, screen_control, select_control
 
 # X: samples x features (DataFrame keeps feature names); y: int/bool = classification
-res = bf(
+res = mf(
     X, y,
     module_membership = {"gene1": "M1", "gene2": "M1", "gene3": "M2", ...},
     screen_params = screen_control(),      # Phase 1 defaults
@@ -59,16 +59,16 @@ res.detect_interaction(thresh=0.01)        # pairwise TreeSHAP interactions
 ### With automatic WGCNA module detection
 
 ```python
-from bonsaiforest import wbf, WGCNA_control
-res = wbf(X, y, WGCNA_params=WGCNA_control(power=6, min_features=20))
+from mossyforest import wmf, WGCNA_control
+res = wmf(X, y, WGCNA_params=WGCNA_control(power=6, min_features=20))
 res.WGCNA_object                           # raw module labels
 ```
 
 ### sklearn-compatible estimator
 
 ```python
-from bonsaiforest import BonsaiForest
-model = BonsaiForest(n_jobs=4, random_state=42)
+from mossyforest import MossyForest
+model = MossyForest(n_jobs=4, random_state=42)
 model.fit(X, y, module_membership=mm)
 model.transform(X)          # X reduced to stable features
 model.predict(X_new)
@@ -100,7 +100,7 @@ model.predict(X_new)
 | `cfres_scope` | `"unassigned"` | `"unassigned"` or `"all_modules"` |
 | `early_stop_boots` | `False` | stop bootstraps early once frequencies converge |
 
-### `bf()` execution / performance
+### `mf()` execution / performance
 | param | default | meaning |
 |---|---|---|
 | `num_processors` | 1 | parallel workers for bootstraps + modules |
@@ -112,7 +112,7 @@ model.predict(X_new)
 
 ---
 
-## Result object (`BonsaiForestResult`)
+## Result object (`MossyForestResult`)
 
 | attribute / method | description |
 |---|---|
@@ -131,7 +131,7 @@ model.predict(X_new)
 ## Plots
 
 ```python
-from bonsaiforest import (
+from mossyforest import (
     plot_importance, plot_waterfall, plot_force, plot_stability,
     plot_stability_elbow, plot_potential_interactions, plot_decisions,
     plot_modules, plot_elbow, plot_soft_threshold,
@@ -153,7 +153,7 @@ python benchmarks/parity_in_process.py       # bit-exact parity vs the R backend
 
 ## Parity with the R package
 
-`bonsaiforest` (Python) is a bit-exact replica of the R package. Verified in
+`mossyforest` (Python) is a bit-exact replica of the R package. Verified in
 one process on identical data/seed/stack, the two agree exactly:
 
 - screening survivors identical, selected set identical

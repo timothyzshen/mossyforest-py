@@ -1,6 +1,6 @@
 """
 In-process parity verification: standalone package vs. the R package's Python
-backend (inst/python/bf_python_backend.py), run in ONE Python process on
+backend (inst/python/mf_python_backend.py), run in ONE Python process on
 identical in-memory data + seed + library stack.
 
 This is the definitive parity check — it removes R, reticulate, CSV round-trips,
@@ -25,13 +25,13 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 
 # Import the R package's Python backend directly. Point at the canonical
-# published package (github.com/timothyzshen/bonsaiforest); its backend is
+# published package (github.com/timothyzshen/mossyforest); its backend is
 # byte-identical to the sf_dev working copy after the RNG alignment.
-R_BACKEND_DIR = "/Users/tzshen/Documents/Github/bonsaiforest/inst/python"
+R_BACKEND_DIR = "/Users/tzshen/Documents/Github/mossyforest/inst/python"
 sys.path.insert(0, R_BACKEND_DIR)
-import bf_python_backend as bk   # noqa: E402
+import mf_python_backend as bk   # noqa: E402
 
-from bonsaiforest import bf, screen_control, select_control   # noqa: E402
+from mossyforest import mf, screen_control, select_control   # noqa: E402
 
 SEED = 42
 
@@ -70,7 +70,7 @@ def experiment_shap_dtype():
 
 
 def run_backend(X, y, feats, labels):
-    """Mirror what R's bf(backend='python') does: screen -> assemble -> select."""
+    """Mirror what R's mf(backend='python') does: screen -> assemble -> select."""
     module_list = list(dict.fromkeys(labels))
     scr = bk.run_screen_rfe(
         X_mat=X.astype(np.float64), y=y, feature_names=feats,
@@ -108,7 +108,7 @@ def main():
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=100)
     sl = select_control(n_boots=30, min_ntree=100, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
-    res = bf(Xdf, y, module_membership=mm, screen_params=sc, select_params=sl,
+    res = mf(Xdf, y, module_membership=mm, screen_params=sc, select_params=sl,
              final_ntree=100, verbose=0, seed=SEED, num_processors=1)
     pkg_surv = {m: sorted(res.survivor_list[m]["features"]) for m in res.survivor_list}
     pkg_sel  = list(res.final_SHAP["feature_name"])

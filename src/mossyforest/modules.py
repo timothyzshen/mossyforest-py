@@ -86,7 +86,7 @@ def detect_modules(
     )
 
     wgcna = PyWGCNA.WGCNA(
-        name="bonsaiforest",
+        name="mossyforest",
         geneExp=gene_expr_df,
         TPMcutoff=0,            # data already preprocessed — no TPM filter
         RsquaredCut=r2_threshold,

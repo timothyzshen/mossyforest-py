@@ -2,7 +2,7 @@
 # R side of the R<->Python parity harness.
 #
 # Reads the SAME data CSV the Python side used, runs the R package's
-# bf(..., backend="python") through reticulate (pinned to the same Python
+# mf(..., backend="python") through reticulate (pinned to the same Python
 # interpreter as the standalone package), and writes the selected features +
 # stability frequencies to JSON for comparison.
 #
@@ -29,7 +29,7 @@ sc <- screen_control(drop_fraction = 0.3, keep_fraction = 0.5, min_ntree = 100L)
 sl <- select_control(n_boots = 30L, min_ntree = 100L, pi_thr = 0.4,
                      shadow_mode = "split", unassigned_modules = "unassigned")
 
-res <- bf(X, y, module_membership = mm, screen_params = sc, select_params = sl,
+res <- mf(X, y, module_membership = mm, screen_params = sc, select_params = sl,
           final_ntree = 100L, num_processors = 1L, verbose = 0L, seed = seed,
           backend = "python")
 

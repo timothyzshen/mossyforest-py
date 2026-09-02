@@ -1,5 +1,5 @@
 """
-Parameter control objects for BonsaiForest.
+Parameter control objects for MossyForest.
 Exact replicas of R's screen_control(), select_control(), and WGCNA_control().
 """
 

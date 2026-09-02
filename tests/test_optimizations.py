@@ -16,9 +16,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from bonsaiforest import bf, screen_control, select_control
-from bonsaiforest.threads import resolve_blas_threads
-from bonsaiforest.shadow import make_shadow_matrix
+from mossyforest import mf, screen_control, select_control
+from mossyforest.threads import resolve_blas_threads
+from mossyforest.shadow import make_shadow_matrix
 
 
 # ── Shared data ───────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ def _params():
 def _run(block_data, n_jobs, **kw):
     X, y, mm = block_data
     sc, sl = _params()
-    return bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    return mf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
               final_ntree=30, num_processors=n_jobs, verbose=0, seed=123, **kw)
 
 
@@ -101,7 +101,7 @@ def test_interaction_lazy_then_cached(block_data):
 def test_interaction_disabled(block_data):
     X, y, mm = block_data
     sc, sl = _params()
-    r = bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    r = mf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
            final_ntree=30, verbose=0, seed=123, compute_interactions=False)
     assert r.interaction_matrix is None
     with pytest.raises(ValueError, match="No interaction matrix"):
@@ -117,7 +117,7 @@ def test_early_stop_runs(block_data):
                         shadow_mode="split", unassigned_modules=["unassigned"],
                         early_stop_boots=True, early_stop_tol=0.05,
                         early_stop_check_every=5)
-    r = bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    r = mf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
            final_ntree=30, verbose=0, seed=7)
     # frequencies still valid in [0, 1]
     for f in r.stability_freq.values():
@@ -131,9 +131,9 @@ def test_early_stop_deterministic_across_workers(block_data):
                         shadow_mode="split", unassigned_modules=["unassigned"],
                         early_stop_boots=True, early_stop_tol=0.05,
                         early_stop_check_every=5)
-    r1 = bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    r1 = mf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
             final_ntree=30, verbose=0, seed=7, num_processors=1)
-    r2 = bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+    r2 = mf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
             final_ntree=30, verbose=0, seed=7, num_processors=3)
     assert r1.stability_freq == r2.stability_freq
 
@@ -202,5 +202,5 @@ def test_bad_shap_backend(block_data):
     X, y, mm = block_data
     sc, sl = _params()
     with pytest.raises(ValueError, match="shap_backend"):
-        bf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
+        mf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
            verbose=0, seed=1, shap_backend="bogus")

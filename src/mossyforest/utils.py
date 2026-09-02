@@ -1,5 +1,5 @@
 """
-Utility functions for BonsaiForest.
+Utility functions for MossyForest.
 """
 
 from __future__ import annotations

@@ -1,14 +1,14 @@
 """
-BonsaiForest — main user-facing API.
+MossyForest — main user-facing API.
 
 Primary functions (matching R's API):
-  bf(X, y, module_membership, ...)    — two-phase feature selection
-  wbf(X, y, WGCNA_params, ...)        — same but runs WGCNA first
+  mf(X, y, module_membership, ...)    — two-phase feature selection
+  wmf(X, y, WGCNA_params, ...)        — same but runs WGCNA first
 
 sklearn-compatible estimator:
-  BonsaiForest(...)                  — wraps bf() for pipeline use
+  MossyForest(...)                  — wraps mf() for pipeline use
 
-Algorithm (matching R's bf() / bf_python_backend.py v18):
+Algorithm (matching R's mf() / mf_python_backend.py v18):
   Phase 1 (Screen):    per-module RFE on the full dataset
   Phase 2 (Select):    shadow-stability selection on survivors
   Phase 3 (Final RF):  RF on the stable set for prediction
@@ -27,7 +27,7 @@ from .parameters import screen_control, select_control, WGCNA_control
 from .rfe import _build_rf, _compute_mtry, _compute_ntree, _map_labels, shap_full_signed
 from .screen import run_screen_rfe
 from .select import run_select_rfe
-from .result import BonsaiForestResult
+from .result import MossyForestResult
 from .modules import detect_modules
 from . import cache
 from .cache import compute_screen_key, load_cached, store_cached
@@ -164,9 +164,9 @@ def _build_final_shap_df(
     return df.reset_index(drop=True)
 
 
-# ── bf() — main two-phase function ───────────────────────────────────────────
+# ── mf() — main two-phase function ───────────────────────────────────────────
 
-def bf(
+def mf(
     X,
     y,
     module_membership,
@@ -184,11 +184,11 @@ def bf(
     use_numba: bool                         = False,
     blas_threads: int | None                = None,
     screen_cache=None,
-) -> BonsaiForestResult:
+) -> MossyForestResult:
     """
-    Bonsai Forest Feature Selection.
+    Mossy Forest Feature Selection.
 
-    Matches R's bf().
+    Matches R's mf().
 
     Parameters
     ----------
@@ -249,7 +249,7 @@ def bf(
 
     Returns
     -------
-    BonsaiForestResult
+    MossyForestResult
     """
     if screen_params is None:
         screen_params = screen_control()
@@ -368,7 +368,7 @@ def bf(
             survivors_flat.append(f)
             surv_to_mod[f] = mod
 
-    # Order survivors in the ORIGINAL X column order to match R's bf(), which
+    # Order survivors in the ORIGINAL X column order to match R's mf(), which
     # builds X_surv via `X[, names(X) %in% survivors]` (original order). Column
     # order changes sklearn RF's mtry feature subsampling (it samples by index),
     # so matching the order is required for exact parity with the R backend.
@@ -510,7 +510,7 @@ def bf(
     if verbose >= 1:
         print("Done.")
 
-    return BonsaiForestResult(
+    return MossyForestResult(
         final_rf          = final_rf,
         final_X           = final_X_df,
         module_membership = module_membership_df,
@@ -527,9 +527,9 @@ def bf(
     )
 
 
-# ── wbf() — bf() with integrated WGCNA module detection ──────────────────────
+# ── wmf() — mf() with integrated WGCNA module detection ──────────────────────
 
-def wbf(
+def wmf(
     X,
     y,
     WGCNA_params: WGCNA_control | None  = None,
@@ -547,22 +547,22 @@ def wbf(
     use_numba: bool                      = False,
     blas_threads: int | None             = None,
     screen_cache=None,
-) -> BonsaiForestResult:
+) -> MossyForestResult:
     """
-    Bonsai Forest with WGCNA Module Detection.
+    Mossy Forest with WGCNA Module Detection.
 
-    Runs PyWGCNA to derive module_membership, then calls bf().
-    Matches R's wbf().
+    Runs PyWGCNA to derive module_membership, then calls mf().
+    Matches R's wmf().
 
     Parameters
     ----------
     WGCNA_params : WGCNA_control
         WGCNA parameters. Default: WGCNA_control(power=6).
-    All other parameters as in bf().
+    All other parameters as in mf().
 
     Returns
     -------
-    BonsaiForestResult with WGCNA_object populated.
+    MossyForestResult with WGCNA_object populated.
     """
     if WGCNA_params is None:
         WGCNA_params = WGCNA_control()
@@ -592,7 +592,7 @@ def wbf(
         unique_mods = len(set(module_labels))
         print(f"WGCNA complete: {unique_mods} modules detected.")
 
-    result = bf(
+    result = mf(
         X                    = X,
         y                    = y,
         module_membership    = module_membership,
@@ -616,11 +616,11 @@ def wbf(
     return result
 
 
-# ── BonsaiForest — sklearn-compatible estimator ──────────────────────────────
+# ── MossyForest — sklearn-compatible estimator ──────────────────────────────
 
-class BonsaiForest(BaseEstimator, TransformerMixin):
+class MossyForest(BaseEstimator, TransformerMixin):
     """
-    Sklearn-compatible wrapper around bf().
+    Sklearn-compatible wrapper around mf().
 
     Suitable for use in sklearn pipelines. Module membership must be supplied
     at fit() time because it is data-dependent (not a hyperparameter).
@@ -687,7 +687,7 @@ class BonsaiForest(BaseEstimator, TransformerMixin):
         self.blas_threads         = blas_threads
         self.screen_cache         = screen_cache
 
-    def fit(self, X, y, module_membership=None) -> "BonsaiForest":
+    def fit(self, X, y, module_membership=None) -> "MossyForest":
         """
         Run the two-phase algorithm.
 
@@ -704,7 +704,7 @@ class BonsaiForest(BaseEstimator, TransformerMixin):
                 "a list/array aligned with X columns, or a pd.Series."
             )
 
-        self.result_ = bf(
+        self.result_ = mf(
             X                    = X,
             y                    = y,
             module_membership    = module_membership,
@@ -767,7 +767,7 @@ class BonsaiForest(BaseEstimator, TransformerMixin):
         sc = self.screen_params or screen_control()
         sl = self.select_params or select_control()
         return (
-            f"BonsaiForest("
+            f"MossyForest("
             f"shadow_mode='{sl.shadow_mode}', "
             f"n_boots={sl.n_boots}, "
             f"pi_thr={sl.pi_thr}, "

@@ -1,7 +1,7 @@
 """
 cross-fit residualization (cfRes) — cross-fitted y residualization.
 
-Matches the _cross_fit_residuals() function from bf_python_backend.py v18.
+Matches the _cross_fit_residuals() function from mf_python_backend.py v18.
 
 Unlike the old Python code (which residualized X), this matches R's cfRes:
   y_resid = y - RF_cv(X_corr)
