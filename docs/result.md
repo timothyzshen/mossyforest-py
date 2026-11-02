@@ -1,0 +1,3 @@
+# Result object
+
+::: mossyforest.MossyForestResult

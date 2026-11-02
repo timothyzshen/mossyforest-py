@@ -44,6 +44,10 @@ dependencies = [
 wgcna = [
     "PyWGCNA>=2.0",
 ]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.25",
+]
 fast = [
     "numba>=0.57",          # JIT-compiled mean |SHAP| reduction (use_numba=True)
     # faster exact TreeSHAP (shap_backend="fasttreeshap").

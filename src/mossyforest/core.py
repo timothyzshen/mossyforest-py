@@ -541,11 +541,15 @@ def wmf(
     ----------
     WGCNA_params : WGCNA_control
         WGCNA parameters. Default: WGCNA_control(power=6).
-    All other parameters as in mf().
+
+    Notes
+    -----
+    All other parameters are the same as in :func:`mf`.
 
     Returns
     -------
-    MossyForestResult with WGCNA_object populated.
+    MossyForestResult
+        The fitted result, with ``WGCNA_object`` populated.
     """
     if WGCNA_params is None:
         WGCNA_params = WGCNA_control()

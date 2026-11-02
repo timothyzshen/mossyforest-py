@@ -2,8 +2,8 @@
 
 Network aware stable feature selection via Shapley values and random forests.
 
-`mossyforest` is the Python implementation of the R
-[mossyforest](https://github.com/timothyzshen/mossyforest) package. It is a
+`mossyforest` is the Python implementation of the
+[<img src="https://www.r-project.org/logo/Rlogo.png" alt="R" height="16"> mossyforest](https://timothyzshen.github.io/mossyforest/) R package. It is a
 bit-exact replica of the R algorithm (verified — see
 [Parity](#parity-with-the-r-package)). It is recommended to use this package for large
 high dimensional data sets.
@@ -29,18 +29,20 @@ pip install mossyforest
 Optional extras:
 
 ```bash
-pip install "mossyforest[wgcna]"   # PyWGCNA, only needed for wmf() and detect_modules()
-pip install "mossyforest[fast]"    # numba + fasttreeshap (fasttreeshap needs Python <=3.11)
+# PyWGCNA, only needed for wmf() and detect_modules()
+pip install "mossyforest[wgcna]"
+
+# numba and fasttreeshap (fasttreeshap needs Python 3.11 or lower)
+pip install "mossyforest[fast]"
 ```
 
 From a clone, for development:
 
 ```bash
-pip install -e .            # from a clone
-# optional extras:
-pip install -e ".[wgcna]"   # PyWGCNA, only needed for wmf() and detect_modules()
-pip install -e ".[fast]"    # numba + fasttreeshap (fasttreeshap needs Python <=3.11)
-pip install -e ".[dev]"     # test / lint tooling
+pip install -e .
+pip install -e ".[wgcna]"   # PyWGCNA
+pip install -e ".[fast]"    # numba and fasttreeshap
+pip install -e ".[dev]"     # test and lint tooling
 ```
 
 Requires Python ≥3.9, numpy, pandas, scikit-learn, shap. Module detection

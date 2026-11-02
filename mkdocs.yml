@@ -1,0 +1,63 @@
+site_name: mossyforest
+site_url: https://timothyzshen.github.io/mossyforest-py/
+site_description: Network aware stable feature selection with random forests and TreeSHAP (Python).
+repo_url: https://github.com/timothyzshen/mossyforest-py
+repo_name: timothyzshen/mossyforest-py
+
+theme:
+  name: material
+  font:
+    text: Source Sans Pro
+    code: Roboto Mono
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.top
+    - navigation.tabs
+    - content.code.copy
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Fit a model: fit.md
+  - Parameters: parameters.md
+  - Plots: plots.md
+  - Module detection: modules.md
+  - Result object: result.md
+  - Utilities: utilities.md
+  - Changelog: changelog.md
+  - R package: https://timothyzshen.github.io/mossyforest/
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            docstring_style: numpy
+            show_root_heading: true
+            show_source: false
+            members_order: source
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - toc:
+      permalink: true
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
