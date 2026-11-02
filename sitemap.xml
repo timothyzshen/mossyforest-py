@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://timothyzshen.github.io/mossyforest-py/</loc>
+         <lastmod>2026-11-02</lastmod>
+    </url>
+    <url>
+         <loc>https://timothyzshen.github.io/mossyforest-py/changelog/</loc>
+         <lastmod>2026-11-02</lastmod>
+    </url>
+    <url>
+         <loc>https://timothyzshen.github.io/mossyforest-py/fit/</loc>
+         <lastmod>2026-11-02</lastmod>
+    </url>
+    <url>
+         <loc>https://timothyzshen.github.io/mossyforest-py/modules/</loc>
+         <lastmod>2026-11-02</lastmod>
+    </url>
+    <url>
+         <loc>https://timothyzshen.github.io/mossyforest-py/parameters/</loc>
+         <lastmod>2026-11-02</lastmod>
+    </url>
+    <url>
+         <loc>https://timothyzshen.github.io/mossyforest-py/plots/</loc>
+         <lastmod>2026-11-02</lastmod>
+    </url>
+    <url>
+         <loc>https://timothyzshen.github.io/mossyforest-py/result/</loc>
+         <lastmod>2026-11-02</lastmod>
+    </url>
+    <url>
+         <loc>https://timothyzshen.github.io/mossyforest-py/utilities/</loc>
+         <lastmod>2026-11-02</lastmod>
+    </url>
+</urlset>
