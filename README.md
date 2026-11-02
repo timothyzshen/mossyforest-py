@@ -1,5 +1,12 @@
 # mossyforest
 
+<!-- badges: start -->
+[![tests](https://github.com/timothyzshen/mossyforest-py/actions/workflows/tests.yaml/badge.svg)](https://github.com/timothyzshen/mossyforest-py/actions/workflows/tests.yaml)
+[![docs](https://github.com/timothyzshen/mossyforest-py/actions/workflows/docs.yaml/badge.svg)](https://timothyzshen.github.io/mossyforest-py/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+<!-- badges: end -->
+
 Network aware stable feature selection via Shapley values and random forests.
 
 `mossyforest` is the Python implementation of the
