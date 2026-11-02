@@ -77,7 +77,7 @@ def run_backend(X, y, feats, labels):
         module_assignments=labels, module_list=module_list,
         drop_fraction=0.3, keep_fraction=0.5, mtry_factor=1.0, ntree_factor=1,
         min_ntree=100, nodesize=1, classification=True, seed=SEED, n_jobs=1,
-        max_modsize=5000, verbose=False)
+        max_modsize=5000)
     surv_mod = {}
     for m, sfeats in zip(module_list, scr["survivor_features"]):
         for f in sfeats:
@@ -87,10 +87,10 @@ def run_backend(X, y, feats, labels):
     order = [f for f in feats if f in surv]
     Xs = X[:, [feats.index(f) for f in order]].astype(np.float64)
     sel = bk.run_select_rfe(
-        X_surv_mat=Xs, y=y, feature_names_surv=order, drop_fraction=0.1,
-        number_selected=1, mtry_factor=1.0, ntree_factor=1, min_ntree=100,
-        nodesize=1, classification=True, seed=SEED, n_jobs=1, max_modsize=5000,
-        n_boots=30, pi_thr=0.4, shadow_mode="split", shadow_percentile=95,
+        X_surv_mat=Xs, y=y, feature_names_surv=order,
+        mtry_factor=1.0, ntree_factor=1, min_ntree=100,
+        nodesize=1, classification=True, seed=SEED, n_jobs=1,
+        n_reps=30, pi_thr=0.4, shadow_mode="split", shadow_percentile=95,
         module_assignments_surv=[surv_mod[f] for f in order],
         unassigned_modules=["unassigned"], verbose=False)
     survivors = {m: sorted(sfeats) for m, sfeats in zip(module_list, scr["survivor_features"])}
@@ -106,7 +106,7 @@ def main():
 
     # ── package ──
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=100)
-    sl = select_control(n_boots=30, min_ntree=100, pi_thr=0.4,
+    sl = select_control(n_reps=30, min_ntree=100, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
     res = mf(Xdf, y, module_membership=mm, screen_params=sc, select_params=sl,
              final_ntree=100, verbose=0, seed=SEED, num_processors=1)

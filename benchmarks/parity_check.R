@@ -26,7 +26,7 @@ mods <- read.csv(sub("\\.csv$", "_mods.csv", data_csv), check.names = FALSE)
 mm   <- setNames(as.character(mods$module), as.character(mods$feature))
 
 sc <- screen_control(drop_fraction = 0.3, keep_fraction = 0.5, min_ntree = 100L)
-sl <- select_control(n_boots = 30L, min_ntree = 100L, pi_thr = 0.4,
+sl <- select_control(n_reps = 30L, min_ntree = 100L, pi_thr = 0.4,
                      shadow_mode = "split", unassigned_modules = "unassigned")
 
 res <- mf(X, y, module_membership = mm, screen_params = sc, select_params = sl,

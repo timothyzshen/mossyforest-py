@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "mossyforest"
 version = "0.1.0"
-description = "Network-aware stable feature selection via Shapley-augmented random forests"
+description = "Network aware stable feature selection via Shapley augmented random forests"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "GPL-3.0-or-later" }
@@ -25,6 +25,8 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "numpy>=1.24",
@@ -60,11 +62,17 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/timothyzshen/mossyforest-py"
-Issues   = "https://github.com/timothyzshen/mossyforest-py/issues"
+Homepage      = "https://github.com/timothyzshen/mossyforest-py"
+Documentation = "https://github.com/timothyzshen/mossyforest-py#readme"
+Changelog     = "https://github.com/timothyzshen/mossyforest-py/blob/main/CHANGELOG.md"
+Issues        = "https://github.com/timothyzshen/mossyforest-py/issues"
+"R package"   = "https://timothyzshen.github.io/mossyforest/"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mossyforest"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/LICENSE", "/CHANGELOG.md", "/pyproject.toml"]
 
 [tool.ruff]
 line-length = 88

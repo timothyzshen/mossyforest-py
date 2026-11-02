@@ -145,13 +145,13 @@ Your numbers will vary with cores and dataset size.
 ## How to read this
 
 - **Standalone Python ≈ 1.6× faster than R-via-reticulate** (11.3 s vs 18.1 s)
-  on identical data — from float32, the parallel bootstrap loop, and avoiding
-  reticulate's R↔Python marshalling. The R backend's bootstrap loop is still
+  on identical data — from float32, the parallel replicate loop, and avoiding
+  reticulate's R↔Python marshalling. The R backend's replicate loop is still
   sequential, so extra `num_processors` barely helps it (18.1 → 16.9 s).
 
 - **Parallelism (`num_processors`) gives a modest ~1.14× here** because the
   dataset is small (sub-second RF fits, so thread overhead dominates). The
-  speedup grows with `n`, `n_features`, `n_boots`, and module count — scale the
+  speedup grows with `n`, `n_features`, `n_reps`, and module count — scale the
   dataset in `make_data()` to see it widen. Determinism holds regardless of
   worker count (see `tests/test_optimizations.py::test_parallel_matches_sequential`).
 

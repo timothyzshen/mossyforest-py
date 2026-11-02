@@ -34,7 +34,7 @@ y  <- as.factor(as.integer((lat[[1]] + lat[[2]] - lat[[3]]) > 0))
 mm <- setNames(labels, feats)
 
 sc <- screen_control(drop_fraction = 0.3, keep_fraction = 0.5, min_ntree = 150L)
-sl <- select_control(n_boots = 30L, min_ntree = 150L, pi_thr = 0.4,
+sl <- select_control(n_reps = 30L, min_ntree = 150L, pi_thr = 0.4,
                      shadow_mode = "split", unassigned_modules = "unassigned")
 
 t0  <- Sys.time()

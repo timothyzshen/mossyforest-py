@@ -50,7 +50,7 @@ def main():
 
     # ── Python package ────────────────────────────────────────────────────────
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=100)
-    sl = select_control(n_boots=30, min_ntree=100, pi_thr=0.4,
+    sl = select_control(n_reps=30, min_ntree=100, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
     res = mf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
              final_ntree=100, num_processors=1, verbose=0, seed=SEED)

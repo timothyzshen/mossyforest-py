@@ -1,6 +1,6 @@
 # mossyforest
 
-Network-aware stable feature selection via Shapley Values and random forests.
+Network aware stable feature selection via Shapley values and random forests.
 
 `mossyforest` is the Python implementation of the R
 [mossyforest](https://github.com/timothyzshen/mossyforest) package. It is a
@@ -11,9 +11,9 @@ high dimensional data sets.
 It selects a small, stable set of features from high-dimensional, correlated data
 by combining:
 
-1. **Module-stratified screening** — recursive feature elimination (RFE) within
+1. **Module stratified screening** — recursive feature elimination (RFE) within
    each correlated module (or WGCNA-derived module).
-2. **Shadow-stability selection** — Boruta-style subsample selection where each
+2. **Shadow stability selection** — Boruta style subsample selection where each
    feature must beat its own permuted "shadow" across many resamples.
 3. **A single TreeSHAP pass** on the stable set for importance, confidence
    intervals, and a pairwise interaction matrix.
@@ -21,6 +21,19 @@ by combining:
 ---
 
 ## Installation
+
+```bash
+pip install mossyforest
+```
+
+Optional extras:
+
+```bash
+pip install "mossyforest[wgcna]"   # PyWGCNA, only needed for wmf() and detect_modules()
+pip install "mossyforest[fast]"    # numba + fasttreeshap (fasttreeshap needs Python <=3.11)
+```
+
+From a clone, for development:
 
 ```bash
 pip install -e .            # from a clone

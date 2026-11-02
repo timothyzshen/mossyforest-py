@@ -39,7 +39,7 @@ def make_data(n: int = 300, seed: int = 0):
 
 def _params():
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=150)
-    sl = select_control(n_boots=30, min_ntree=150, pi_thr=0.4,
+    sl = select_control(n_reps=30, min_ntree=150, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
     return sc, sl
 
@@ -111,7 +111,7 @@ def run_cache_sweep(X, y, mm, pi_values=(0.3, 0.4, 0.5, 0.6)):
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=150)
 
     def one(cache, pi):
-        sl = select_control(n_boots=30, min_ntree=150, pi_thr=pi,
+        sl = select_control(n_reps=30, min_ntree=150, pi_thr=pi,
                             shadow_mode="split", unassigned_modules=["unassigned"])
         mf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
            final_ntree=150, verbose=0, seed=42, screen_cache=cache)
