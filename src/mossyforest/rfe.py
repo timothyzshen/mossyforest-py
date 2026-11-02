@@ -1,7 +1,7 @@
 """
 RFE loop, blockwise reduction, and shared RF/SHAP helpers.
 
-All helpers here match the Python backend (mf_python_backend.py v18) used
+All helpers here match the Python backend (mf_python_backend.py) used
 by the R package.
 """
 
@@ -18,7 +18,7 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 try:
     from numba import njit
 
-    # NOTE: serial njit (no parallel=True). The bootstrap loop is already
+    # NOTE: serial njit (no parallel=True). The replicate loop is already
     # parallelized with joblib threads; numba's default workqueue threading
     # layer is NOT threadsafe, so an inner parallel njit called from multiple
     # threads crashes ("workqueue threading layer is not threadsafe").
@@ -62,7 +62,7 @@ def _tree_explainer(rf, backend: str = "shap"):
                               (algorithm="v2"), which returns identical values
                               to shap but is faster. Requires fasttreeshap.
 
-    Compatibility note: fasttreeshap pins shap<0.46 → numpy<2, a legacy stack
+    Compatibility note: fasttreeshap pins shap<0.46 → numpy<2, an older stack
     with no wheels for Python >=3.12. It is therefore only usable on Python
     <=3.11 with numpy<2 / shap<0.46. On a modern stack the import below fails
     with a clear message and you should keep the default backend="shap".
@@ -89,10 +89,8 @@ def _compute_mtry(n_features: int, mtry_factor: float, classification: bool,
     """
     Features considered per split.
 
-    rule="auto"     — p/3 (classification) / sqrt(p) (regression). Historical
-                      default; preserves R parity. NOTE this is the reverse of
-                      the standard RF convention, and p/3 makes split search
-                      linear in p (the dominant cost for classification).
+    rule="auto"     — sqrt(p) (classification) / p/3 (regression), the
+                      standard random-forest convention.
     rule="sqrt"     — sqrt(p) for both.
     rule="p_over_3" — p/3 for both.
     """
@@ -101,7 +99,7 @@ def _compute_mtry(n_features: int, mtry_factor: float, classification: bool,
     elif rule == "p_over_3":
         base = n_features / 3
     else:   # "auto"
-        base = (n_features / 3) if classification else math.sqrt(n_features)
+        base = math.sqrt(n_features) if classification else (n_features / 3)
     return min(max(1, math.ceil(mtry_factor * base)), n_features)
 
 
@@ -110,7 +108,7 @@ def _compute_mtry_augmented(p_real: int, mtry_factor: float, classification: boo
     """
     mtry for the augmented [real | shadow] matrix (2*p_real columns).
 
-    on_real=False — mtry = rule(2p)          (historical)
+    on_real=False — mtry = rule(2p)          (default)
     on_real=True  — mtry = 2 * rule(p_real)  (keeps the expected number of REAL
                     features per split equal to an unaugmented forest; a
                     statistical correction, NOT a speedup)
@@ -161,7 +159,7 @@ def shap_mean_abs(
     """
     Mean absolute SHAP values — shape (n_features,).
 
-    Handles both the legacy list format and modern ndarray format from shap.
+    Handles both list-of-arrays and ndarray outputs of shap (version dependent).
     For binary classification: class-1 SHAP. For multiclass: mean |SHAP| across classes.
     """
     with warnings.catch_warnings():
@@ -286,14 +284,11 @@ def rfe_loop(
     -------
     survivors : list of str
     survivor_vims : list of float
-    initial_info : dict   (feature, vim, survivor at first step)
     all_steps : list of (names_sorted, vims_sorted) per step
     """
     feat_names = list(feat_names)
     current_X = np.ascontiguousarray(X_mod, dtype=np.float32)
     current_names = list(feat_names)
-    is_initial = True
-    initial_info = None
     survivors = None
     survivor_vims = None
     all_steps = []
@@ -327,16 +322,6 @@ def rfe_loop(
 
         all_steps.append((list(names_sorted), vim_sorted.tolist()))
 
-        if is_initial:
-            n_keep_init   = max(n_cur - reduction, target)
-            survived_init = [True] * n_keep_init + [False] * (n_cur - n_keep_init)
-            initial_info  = {
-                "feature":  names_sorted,
-                "vim":      vim_sorted.tolist(),
-                "survivor": survived_init,
-            }
-            is_initial = False
-
         if n_cur - reduction > target:
             keep_n        = n_cur - reduction
             keep_idx      = list(order[:keep_n])
@@ -351,7 +336,7 @@ def rfe_loop(
         survivors     = current_names[:target]
         survivor_vims = [0.0] * len(survivors)
 
-    return survivors, survivor_vims, initial_info, all_steps
+    return survivors, survivor_vims, all_steps
 
 
 # ── Blockwise pre-reduction ───────────────────────────────────────────────────
@@ -395,7 +380,7 @@ def blockwise_reduce(
             names_blk  = [feat_names[i] for i in block]
             n_blk      = len(block)
             target_blk = max(1, math.ceil(n_blk * keep_fraction))
-            surv_b, _, _, _ = rfe_loop(
+            surv_b, _, _ = rfe_loop(
                 X_blk, names_blk, y, target_blk,
                 drop_fraction, mtry_factor, ntree_factor, min_ntree,
                 nodesize, classification, seed, n_jobs, use_shap,

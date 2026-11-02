@@ -68,7 +68,7 @@ def detect_modules(
     except ImportError as e:
         raise ImportError(
             "PyWGCNA is required for module detection.\n"
-            "Install with: pip install PyWGCNA"
+            "Install with: pip install \"mossyforest[wgcna]\""
         ) from e
 
     n_samples, n_features = X.shape
@@ -153,7 +153,9 @@ def pick_soft_threshold(
     try:
         import PyWGCNA
     except ImportError as e:
-        raise ImportError("Install PyWGCNA with: pip install PyWGCNA") from e
+        raise ImportError(
+            "PyWGCNA is required. Install with: pip install \"mossyforest[wgcna]\""
+        ) from e
 
     if powers is None:
         powers = list(range(1, 21))

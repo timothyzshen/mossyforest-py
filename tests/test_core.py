@@ -2,7 +2,7 @@
 Unit tests for MossyForest core components.
 
 Tests are written against the new two-phase API that exactly mirrors
-the R package's mf() / mf_python_backend.py v18.
+the R package's mf() / mf_python_backend.py.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from mossyforest.shadow import (
     apply_stable_threshold,
     find_elbow_idx,
 )
-from mossyforest.stability import StabilityTracker
 from mossyforest.cfres import cross_fit_residuals
 from mossyforest.rfe import rfe_loop, _compute_mtry, _compute_ntree
 
@@ -59,9 +58,8 @@ def test_screen_control_defaults():
 
 def test_select_control_defaults():
     sl = select_control()
-    assert sl.drop_fraction     == 0.10
     assert sl.shadow_mode       == "split"
-    assert sl.n_boots           == 50
+    assert sl.n_reps           == 50
     assert sl.pi_thr            == 0.60
     assert sl.pi_thr_unassigned      is None
     assert sl.threshold_mode    == "pi_thr"
@@ -104,10 +102,10 @@ def test_instantiation():
 
 def test_instantiation_custom_params():
     sc = screen_control(drop_fraction=0.30, keep_fraction=0.40)
-    sl = select_control(n_boots=20, pi_thr=0.70, shadow_mode="within_module")
+    sl = select_control(n_reps=20, pi_thr=0.70, shadow_mode="within_module")
     model = MossyForest(screen_params=sc, select_params=sl, final_ntree=200)
     assert model.screen_params.drop_fraction == 0.30
-    assert model.select_params.n_boots       == 20
+    assert model.select_params.n_reps       == 20
     assert model.final_ntree                 == 200
 
 
@@ -121,10 +119,10 @@ def test_fit_requires_module_membership(classification_data):
 # ── mtry / ntree helpers ──────────────────────────────────────────────────────
 
 def test_compute_mtry_regression():
-    assert _compute_mtry(100, 1.0, classification=False) == 10
+    assert _compute_mtry(30, 1.0, classification=False) == 10    # p/3
 
 def test_compute_mtry_classification():
-    assert _compute_mtry(30, 1.0, classification=True)   == 10
+    assert _compute_mtry(100, 1.0, classification=True)  == 10    # sqrt(p)
 
 def test_compute_ntree():
     assert _compute_ntree(100, 1, 500) == 500
@@ -191,20 +189,19 @@ def test_apply_stable_threshold_elbow():
 def test_rfe_loop_returns_target(classification_data):
     X, y = classification_data
     feat_names = [f"X{i}" for i in range(X.shape[1])]
-    survivors, vims, init_info, steps = rfe_loop(
+    survivors, vims, steps = rfe_loop(
         X, feat_names, (y > 0).astype(int), target=5,
         drop_fraction=0.25, mtry_factor=1.0, ntree_factor=1, min_ntree=50,
         nodesize=1, classification=True, seed=42, n_jobs=1,
     )
     assert len(survivors) == 5
     assert len(vims)       == 5
-    assert init_info is not None
 
 
 def test_rfe_loop_survivor_names_are_subset(classification_data):
     X, y = classification_data
     feat_names = [f"X{i}" for i in range(X.shape[1])]
-    survivors, _, _, _ = rfe_loop(
+    survivors, _, _ = rfe_loop(
         X, feat_names, (y > 0).astype(int), target=3,
         drop_fraction=0.25, mtry_factor=1.0, ntree_factor=1, min_ntree=50,
         nodesize=1, classification=True, seed=0, n_jobs=1,
@@ -231,35 +228,6 @@ def test_cross_fit_residuals_reduces_variance(regression_data):
     assert np.var(y_resid) < np.var(y)
 
 
-# ── StabilityTracker ──────────────────────────────────────────────────────────
-
-def test_stability_tracker():
-    tracker = StabilityTracker(n_features=10)
-    tracker.update(np.array([0, 1, 2]))
-    tracker.update(np.array([1, 2, 3]))
-    freqs = tracker.frequencies
-    assert freqs[1] == 1.0
-    assert freqs[2] == 1.0
-    assert freqs[0] == 0.5
-    assert freqs[9] == 0.0
-
-
-def test_stability_tracker_stable_set():
-    tracker = StabilityTracker(n_features=5)
-    tracker.update(np.array([0, 1]))
-    tracker.update(np.array([1, 2]))
-    stable = tracker.stable_set(pi_thr=0.8)
-    assert set(stable) == {1}
-
-
-def test_stability_tracker_reset():
-    tracker = StabilityTracker(n_features=4)
-    tracker.update(np.array([0, 1]))
-    tracker.reset()
-    assert tracker.n_iter == 0
-    assert tracker.counts.sum() == 0
-
-
 # ── Boruta shadow stability (smoke test) ──────────────────────────────────────
 
 def test_boruta_shadow_stability_returns_all_features(classification_data):
@@ -267,7 +235,7 @@ def test_boruta_shadow_stability_returns_all_features(classification_data):
     feat_names = [f"X{i}" for i in range(X.shape[1])]
     names_sort, freqs_sort = boruta_shadow_stability(
         X_pool=X, feat_names=feat_names, y=y.astype(int),
-        n_boots=5, mtry_factor=1.0, ntree_factor=1, min_ntree=30,
+        n_reps=5, mtry_factor=1.0, ntree_factor=1, min_ntree=30,
         nodesize=1, classification=True, seed=0, n_jobs=1,
         shadow_percentile=95,
     )
@@ -306,7 +274,7 @@ def test_mossyforest_fit_runs(small_block_data):
     """MossyForest.fit() must complete without errors."""
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
-    sl = select_control(n_boots=5, min_ntree=20, shadow_percentile=95,
+    sl = select_control(n_reps=5, min_ntree=20, shadow_percentile=95,
                         pi_thr=0.4, shadow_mode="split",
                         unassigned_modules=["unassigned"])
     model = MossyForest(
@@ -321,7 +289,7 @@ def test_mossyforest_fit_runs(small_block_data):
 def test_mossyforest_transform(small_block_data):
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
-    sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
+    sl = select_control(n_reps=5, min_ntree=20, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
     model = MossyForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)
@@ -334,7 +302,7 @@ def test_mossyforest_within_module(small_block_data):
     """within_module shadow_mode must run without error."""
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
-    sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
+    sl = select_control(n_reps=5, min_ntree=20, pi_thr=0.4,
                         shadow_mode="within_module")
     model = MossyForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=1, verbose=0)
@@ -345,7 +313,7 @@ def test_mossyforest_within_module(small_block_data):
 def test_mossyforest_predict(small_block_data):
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
-    sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
+    sl = select_control(n_reps=5, min_ntree=20, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
     model = MossyForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)
@@ -358,7 +326,7 @@ def test_result_attributes(small_block_data):
     """MossyForestResult must have all expected attributes."""
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
-    sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
+    sl = select_control(n_reps=5, min_ntree=20, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
     model = MossyForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)
@@ -385,7 +353,7 @@ def test_final_shap_columns(small_block_data):
     """final_SHAP DataFrame must have the expected CI columns."""
     X, y, mods = small_block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
-    sl = select_control(n_boots=5, min_ntree=20, pi_thr=0.4,
+    sl = select_control(n_reps=5, min_ntree=20, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
     model = MossyForest(screen_params=sc, select_params=sl,
                           final_ntree=20, random_state=0, verbose=0)

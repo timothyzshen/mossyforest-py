@@ -2,9 +2,9 @@
 Phase 2: Shadow-stability selection + single-shot RF/SHAP.
 
 Implements shadow_mode = "split" and "within_module", cfRes y-residualization,
-and the v18 single-shot final RF + TreeSHAP + interaction matrix.
+and the single-shot final RF + TreeSHAP + interaction matrix.
 
-Matches run_select_rfe() from mf_python_backend.py v18.
+Matches run_select_rfe() from mf_python_backend.py.
 """
 
 from __future__ import annotations
@@ -34,7 +34,6 @@ def run_select_rfe(
     classification: bool,
     seed: int,
     n_jobs: int,
-    max_modsize: int = 5000,
     compute_interactions: bool = True,
     backend: str = "shap",
     use_numba: bool = False,
@@ -46,8 +45,8 @@ def run_select_rfe(
 
     shadow_mode = "split"
         Corr pool → shadow stability → stable_corr  (pi_thr threshold)
-        Ind  pool → shadow stability → stable_ind   (elbow or pi_thr_unassigned)
-        stable_union = stable_corr | stable_ind
+        Unassigned pool → shadow stability → stable_unassigned   (elbow or pi_thr_unassigned)
+        stable_union = stable_corr | stable_unassigned
         → single RF on X[stable_union] + TreeSHAP → return all features
 
     shadow_mode = "within_module"
@@ -56,7 +55,7 @@ def run_select_rfe(
         → single RF + TreeSHAP → return all features
 
     cfRes (use_cfres=True):
-        cfres_scope="unassigned": y_resid = y - RF_cv(X_corr); ind pool uses y_resid.
+        cfres_scope="unassigned": y_resid = y - RF_cv(X_corr); unassigned pool uses y_resid.
         cfres_scope="all_modules": For each module m, y_resid_m = y - RF_cv(X_{-m}).
 
     Returns
@@ -64,7 +63,7 @@ def run_select_rfe(
     dict with keys:
         final_features     : list[str]         sorted by mean|SHAP| desc
         final_vims         : list[float]        mean|SHAP| per feature
-        stability_freq     : list[float]        shadow-boot frequency
+        stability_freq     : list[float]        shadow-subsample frequency
         shap_matrix        : ndarray (n, p)     signed SHAP values
         interaction_matrix : ndarray (p, p) or None
         pool_stability     : list[dict]         per-pool selection data
@@ -86,6 +85,10 @@ def run_select_rfe(
         y = y.astype(np.float64)
 
     unassigned_set = set(str(m) for m in sl.unassigned_modules) if sl.unassigned_modules else set()
+    # Deterministic feature order: set iteration order changes between Python
+    # processes (string hashing), which would change the final forest's columns.
+    _feat_order = {str(f): i for i, f in enumerate(feature_names_surv)}
+    _by_order = lambda names: sorted(set(names), key=lambda f: _feat_order.get(f, len(_feat_order)))
     if module_assignments_surv is not None:
         raw_mods    = [str(m) for m in module_assignments_surv]
         name_to_mod = dict(zip(feature_names_surv, raw_mods))
@@ -95,27 +98,27 @@ def run_select_rfe(
     if verbose:
         print(f"[Phase 2] shadow_mode={shadow_mode}  "
               f"shadow_percentile={sl.shadow_percentile}  "
-              f"pi_thr={sl.pi_thr}  n_boots={sl.n_boots}")
+              f"pi_thr={sl.pi_thr}  n_reps={sl.n_reps}")
 
-    # (Phase-2 blockwise pre-reduction removed by design — the full survivor
-    #  pool goes straight into shadow stability.)
+    # The full survivor pool goes straight into shadow stability
+    # (no blockwise pre-reduction in Phase 2).
 
-    # ── cfRes: compute y_resid for ind pool (scope="unassigned") ────────────────────
+    # ── cfRes: compute y_resid for unassigned pool (scope="unassigned") ────────────────────
     # Computed once here regardless of shadow_mode branch.
     if sl.use_cfres and unassigned_set and name_to_mod:
         all_corr_idx = [i for i, f in enumerate(feature_names_surv)
                         if name_to_mod.get(f, "") not in unassigned_set]
         if len(all_corr_idx) == 0:
             if verbose:
-                print("  cfRes: no corr survivors — using original y for ind pool")
-            y_for_ind = y
+                print("  cfRes: no corr survivors — using original y for unassigned pool")
+            y_for_unassigned = y
         else:
             X_corr_surv = X_surv_mat[:, all_corr_idx]
             if verbose:
                 print(f"  cfRes: cross-fitted residualization "
                       f"({sl.cfres_n_folds} folds, ntree={sl.cfres_ntree}, "
                       f"p_corr={len(all_corr_idx)})")
-            y_for_ind = cross_fit_residuals(
+            y_for_unassigned = cross_fit_residuals(
                 X_corr   = X_corr_surv,
                 y        = y,
                 k_folds  = sl.cfres_n_folds,
@@ -126,7 +129,7 @@ def run_select_rfe(
                 n_jobs      = int(n_jobs),
             )
     else:
-        y_for_ind = y
+        y_for_unassigned = y
 
     # ── helper: run shadow stability + threshold on a column subset ───────────
     def _shadow_on_cols(col_idx, label, seed_offset=0, is_unassigned=False, y_override=None):
@@ -139,7 +142,7 @@ def run_select_rfe(
         if y_override is not None:
             y_arr = y_override
         elif is_unassigned:
-            y_arr = y_for_ind
+            y_arr = y_for_unassigned
         else:
             y_arr = y
 
@@ -158,7 +161,7 @@ def run_select_rfe(
             X_pool           = X_sub,
             feat_names       = names_s,
             y                = y_arr,
-            n_boots          = sl.n_boots,
+            n_reps          = sl.n_reps,
             mtry_factor      = sl.mtry_factor,
             ntree_factor     = sl.ntree_factor,
             min_ntree        = sl.min_ntree,
@@ -171,7 +174,7 @@ def run_select_rfe(
             backend          = backend,
             use_numba        = use_numba,
             blas_threads     = blas_threads,
-            early_stop_boots = sl.early_stop_boots,
+            early_stop = sl.early_stop,
             early_stop_tol   = sl.early_stop_tol,
             early_stop_check_every = sl.early_stop_check_every,
             mtry_rule        = sl.mtry_rule,
@@ -182,23 +185,23 @@ def run_select_rfe(
         if sl.threshold_mode == "elbow":
             # Alternative A: unified adaptive elbow rule for BOTH pools.
             stable, threshold, elbow_rank = apply_stable_threshold(
-                names_sort, freqs_sort, sl.pi_thr, use_elbow=True, label=label,
+                names_sort, freqs_sort, sl.pi_thr, use_elbow=True,
             )
         elif is_unassigned:
             use_elbow = (sl.pi_thr_unassigned is None)
             thr       = sl.pi_thr_unassigned if not use_elbow else sl.pi_thr
             stable, threshold, elbow_rank = apply_stable_threshold(
-                names_sort, freqs_sort, thr, use_elbow=use_elbow, label=label,
+                names_sort, freqs_sort, thr, use_elbow=use_elbow,
             )
         else:
             stable, threshold, elbow_rank = apply_stable_threshold(
-                names_sort, freqs_sort, sl.pi_thr, use_elbow=False, label=label,
+                names_sort, freqs_sort, sl.pi_thr, use_elbow=False,
             )
 
         return names_sort, freq_map, stable, threshold, freqs_sort, elbow_rank
 
     # ─────────────────────────────────────────────────────────────────────────
-    # MODE A: "split" — corr pool vs ind pool
+    # MODE A: "split" — corr pool vs unassigned pool
     # ─────────────────────────────────────────────────────────────────────────
     if shadow_mode == "split":
         if unassigned_set and name_to_mod:
@@ -216,7 +219,7 @@ def run_select_rfe(
             X_ind_surv = X_surv_mat[:, unassigned_idx]
             if verbose:
                 print(f"  split+mcfRes: residualizing y for corr pool using "
-                      f"{len(unassigned_idx)} ind features")
+                      f"{len(unassigned_idx)} unassigned features")
             y_for_corr = cross_fit_residuals(
                 X_corr      = X_ind_surv,
                 y           = y,
@@ -239,7 +242,7 @@ def run_select_rfe(
             _shadow_on_cols(unassigned_idx, "unassigned", seed_offset=1, is_unassigned=True)
 
         freq_map_all = {**freq_corr, **freq_unassigned}
-        stable_union = list(set(stable_corr) | set(stable_unassigned))
+        stable_union = _by_order(list(stable_corr) + list(stable_unassigned))
 
         pool_stability = []
         if names_corr:
@@ -341,7 +344,7 @@ def run_select_rfe(
                         "elbow_rank":   elbow_mod,
                     })
 
-            stable_union = list(set(stable_union))
+            stable_union = _by_order(stable_union)
 
     else:
         raise ValueError(
@@ -369,7 +372,7 @@ def run_select_rfe(
             "selection_list_vims":  [all_freqs,  []],
         }
 
-    # ── v18: single-shot RF on all stable features → TreeSHAP ────────────────
+    # ── single-shot RF on all stable features → TreeSHAP ────────────────
     stable_sorted = sorted(stable_union,
                            key=lambda f: freq_map_all.get(f, 0.0), reverse=True)
 

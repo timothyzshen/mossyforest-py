@@ -8,7 +8,7 @@ Primary functions (matching R's API):
 sklearn-compatible estimator:
   MossyForest(...)                  — wraps mf() for pipeline use
 
-Algorithm (matching R's mf() / mf_python_backend.py v18):
+Algorithm (matching R's mf() / mf_python_backend.py):
   Phase 1 (Screen):    per-module RFE on the full dataset
   Phase 2 (Select):    shadow-stability selection on survivors
   Phase 3 (Final RF):  RF on the stable set for prediction
@@ -176,7 +176,6 @@ def mf(
     nodesize: int | None                    = None,
     num_processors: int                     = 1,
     max_modsize: int                        = 5000,
-    auto_initial: str                       = "4",
     verbose: int                            = 1,
     seed: int | None                        = None,
     compute_interactions: bool              = True,
@@ -211,12 +210,6 @@ def mf(
         Parallel workers for RF fitting. Default 1.
     max_modsize : int
         Module size above which blockwise pre-reduction is applied. Default 5000.
-    auto_initial : str
-        Initial-screen checkpoint.
-        "1" — save CSV and stop.
-        "2" — save CSV and continue.
-        "3" — stop without saving.
-        "4" — continue without saving (default).
     verbose : int
         0 = silent; 1 = progress messages; 2 = detailed. Default 1.
     seed : int or None
@@ -282,6 +275,18 @@ def mf(
     module_assign = [mm_map.get(f, "unassigned") for f in feature_names]
     module_list   = list(dict.fromkeys(module_assign))   # preserves order, deduplicates
 
+    # an unassigned_modules name that matches no module would be silently ignored
+    um_missing = [str(m) for m in (select_params.unassigned_modules or [])
+                  if str(m) not in module_list]
+    if um_missing:
+        warnings.warn(
+            "`unassigned_modules` not found in `module_membership`: "
+            + ", ".join(f"'{m}'" for m in um_missing)
+            + ". Those features are treated as an ordinary module, not as an "
+            "unassigned pool. Modules present: "
+            + ", ".join(sorted(str(m) for m in module_list)) + ".",
+            UserWarning, stacklevel=2)
+
     runtimes = {"Screen": np.nan, "Selection": np.nan, "Final_RF": np.nan}
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -330,26 +335,6 @@ def mf(
 
     runtimes["Screen"] = time.time() - t0
 
-    # ── build initial_screen DataFrame ────────────────────────────────────────
-    initial_screen = None
-    if screen_result["initial_feat"]:
-        initial_screen = pd.DataFrame({
-            "Module":   screen_result["initial_module"],
-            "Feature":  screen_result["initial_feat"],
-            "VIM":      screen_result["initial_vim"],
-            "Survivor": screen_result["initial_survivor"],
-        })
-
-    # ── auto_initial checkpoint ───────────────────────────────────────────────
-    if auto_initial in ("1", "2") and initial_screen is not None:
-        initial_screen.to_csv("initial_screen.csv", index=False)
-        if verbose >= 1:
-            print("Initial screen saved to 'initial_screen.csv'.")
-    if auto_initial == "1":
-        raise RuntimeError("Stopped after initial screen (auto_initial='1').")
-    if auto_initial == "3":
-        raise RuntimeError("Stopped after initial screen (auto_initial='3').")
-
     # ── assemble survivor pool ────────────────────────────────────────────────
     survivor_list: dict = {}
     survivors_flat: list = []
@@ -394,7 +379,6 @@ def mf(
         classification       = CLASSIFICATION,
         seed                 = seed,
         n_jobs               = num_processors,
-        max_modsize          = max_modsize,
         compute_interactions = compute_interactions,
         backend              = shap_backend,
         use_numba            = use_numba,
@@ -539,7 +523,6 @@ def wmf(
     nodesize: int | None                 = None,
     num_processors: int                  = 1,
     max_modsize: int                     = 5000,
-    auto_initial: str                    = "4",
     verbose: int                         = 1,
     seed: int | None                     = None,
     compute_interactions: bool           = True,
@@ -602,7 +585,6 @@ def wmf(
         nodesize             = nodesize,
         num_processors       = num_processors,
         max_modsize          = max_modsize,
-        auto_initial         = auto_initial,
         verbose              = verbose,
         seed                 = seed,
         compute_interactions = compute_interactions,
@@ -639,8 +621,6 @@ class MossyForest(BaseEstimator, TransformerMixin):
         Parallel workers. Default 1.
     max_modsize : int
         Blockwise pre-reduction trigger. Default 5000.
-    auto_initial : str
-        Checkpoint control ("4" = continue silently). Default "4".
     verbose : int
         Verbosity level 0/1/2. Default 1.
     random_state : int or None
@@ -663,7 +643,6 @@ class MossyForest(BaseEstimator, TransformerMixin):
         nodesize: int | None                 = None,
         n_jobs: int                          = 1,
         max_modsize: int                     = 5000,
-        auto_initial: str                    = "4",
         verbose: int                         = 1,
         random_state: int | None             = None,
         compute_interactions: bool           = True,
@@ -678,7 +657,6 @@ class MossyForest(BaseEstimator, TransformerMixin):
         self.nodesize             = nodesize
         self.n_jobs               = n_jobs
         self.max_modsize          = max_modsize
-        self.auto_initial         = auto_initial
         self.verbose              = verbose
         self.random_state         = random_state
         self.compute_interactions = compute_interactions
@@ -714,7 +692,6 @@ class MossyForest(BaseEstimator, TransformerMixin):
             nodesize             = self.nodesize,
             num_processors       = self.n_jobs,
             max_modsize          = self.max_modsize,
-            auto_initial         = self.auto_initial,
             verbose              = self.verbose,
             seed                 = self.random_state,
             compute_interactions = self.compute_interactions,
@@ -769,7 +746,7 @@ class MossyForest(BaseEstimator, TransformerMixin):
         return (
             f"MossyForest("
             f"shadow_mode='{sl.shadow_mode}', "
-            f"n_boots={sl.n_boots}, "
+            f"n_reps={sl.n_reps}, "
             f"pi_thr={sl.pi_thr}, "
             f"final_ntree={self.final_ntree}, "
             f"n_jobs={self.n_jobs})"

@@ -35,15 +35,18 @@ dependencies = [
     "seaborn>=0.12",
     "scipy>=1.10",
     "joblib>=1.2",
-    "PyWGCNA>=2.0",
 ]
 
 [project.optional-dependencies]
+# automatic module detection, needed only for wmf() and detect_modules()
+wgcna = [
+    "PyWGCNA>=2.0",
+]
 fast = [
     "numba>=0.57",          # JIT-compiled mean |SHAP| reduction (use_numba=True)
     # faster exact TreeSHAP (shap_backend="fasttreeshap").
     # NOTE: fasttreeshap pins shap<0.46, which in turn requires numpy<2; that
-    # legacy stack has no wheels for Python >=3.12. The environment marker below
+    # older stack has no wheels for Python >=3.12. The environment marker below
     # therefore restricts it to Python <3.12. On Python 3.12+ use the default
     # shap_backend="shap" (the fasttreeshap path raises a clear ImportError).
     "fasttreeshap>=0.1.6; python_version < '3.12'",
@@ -57,8 +60,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tzshen/mossyforest_py"
-Issues   = "https://github.com/tzshen/mossyforest_py/issues"
+Homepage = "https://github.com/timothyzshen/mossyforest-py"
+Issues   = "https://github.com/timothyzshen/mossyforest-py/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mossyforest"]

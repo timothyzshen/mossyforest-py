@@ -56,7 +56,7 @@ def block_data():
 def _fast_params():
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
     sl = select_control(
-        n_boots=8, min_ntree=30, pi_thr=0.4,
+        n_reps=8, min_ntree=30, pi_thr=0.4,
         shadow_mode="split",
         unassigned_modules=["unassigned"],
         shadow_percentile=95,
@@ -129,7 +129,7 @@ def test_threshold_mode_elbow_runs(block_data):
     """threshold_mode='elbow' (Alternative A) applies the elbow rule to BOTH pools."""
     X, y, labels, _ = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
-    sl = select_control(n_boots=8, min_ntree=30, pi_thr=0.4,
+    sl = select_control(n_reps=8, min_ntree=30, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"],
                         threshold_mode="elbow")
     result = mf(X, y, module_membership=labels,
@@ -164,7 +164,7 @@ def test_shap_direction_recovers_sign(block_data):
     mm = {c: ("A" if c.startswith("pos") else "B" if c.startswith("neg")
               else "unassigned") for c in Xd.columns}
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.6, min_ntree=60)
-    sl = select_control(n_boots=15, min_ntree=60, pi_thr=0.3,
+    sl = select_control(n_reps=15, min_ntree=60, pi_thr=0.3,
                         shadow_mode="split", unassigned_modules=["unassigned"])
     res = mf(Xd, y, module_membership=mm, screen_params=sc, select_params=sl,
              final_ntree=60, verbose=0, seed=3)
@@ -189,7 +189,7 @@ def test_shap_direction_recovers_sign(block_data):
 def test_within_module_mode_runs(block_data):
     X, y, labels, _ = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
-    sl = select_control(n_boots=8, min_ntree=30, pi_thr=0.4,
+    sl = select_control(n_reps=8, min_ntree=30, pi_thr=0.4,
                         shadow_mode="within_module", shadow_percentile=95)
     result = mf(
         X, y, module_membership=labels,
@@ -203,7 +203,7 @@ def test_within_module_stability_data_pools(block_data):
     """within_module mode should produce one pool per module in stability_data."""
     X, y, labels, _ = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
-    sl = select_control(n_boots=6, min_ntree=30, pi_thr=0.4,
+    sl = select_control(n_reps=6, min_ntree=30, pi_thr=0.4,
                         shadow_mode="within_module", shadow_percentile=95)
     result = mf(
         X, y, module_membership=labels,
@@ -223,7 +223,7 @@ def test_dml_unassigned_scope_runs(block_data):
     X, y, labels, _ = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
     sl = select_control(
-        n_boots=6, min_ntree=30, pi_thr=0.4,
+        n_reps=6, min_ntree=30, pi_thr=0.4,
         shadow_mode="split", unassigned_modules=["unassigned"],
         use_cfres=True, cfres_scope="unassigned",
         cfres_n_folds=2, cfres_ntree=20,
@@ -241,7 +241,7 @@ def test_dml_all_modules_scope_within(block_data):
     X, y, labels, _ = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
     sl = select_control(
-        n_boots=5, min_ntree=30, pi_thr=0.4,
+        n_reps=5, min_ntree=30, pi_thr=0.4,
         shadow_mode="within_module",
         use_cfres=True, cfres_scope="all_modules",
         cfres_n_folds=2, cfres_ntree=20,
@@ -312,30 +312,6 @@ def test_predict_returns_array(block_data):
         assert preds.shape == (X.shape[0],)
 
 
-# ── auto_initial checkpoint ───────────────────────────────────────────────────
-
-def test_auto_initial_stop(block_data, tmp_path, monkeypatch):
-    """auto_initial='1' must raise RuntimeError after Phase 1."""
-    monkeypatch.chdir(tmp_path)
-    X, y, labels, _ = block_data
-    sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
-    with pytest.raises(RuntimeError, match="Stopped after initial screen"):
-        mf(X, y, module_membership=labels,
-           screen_params=sc, select_params=select_control(n_boots=3, min_ntree=20),
-           final_ntree=20, verbose=0, seed=0, auto_initial="1")
-
-
-def test_auto_initial_3_stops_no_save(block_data, tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    X, y, labels, _ = block_data
-    sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=20)
-    with pytest.raises(RuntimeError, match="Stopped after initial screen"):
-        mf(X, y, module_membership=labels,
-           screen_params=sc, select_params=select_control(n_boots=3, min_ntree=20),
-           final_ntree=20, verbose=0, seed=0, auto_initial="3")
-    assert not (tmp_path / "initial_screen.csv").exists()
-
-
 # ── DataFrame input ───────────────────────────────────────────────────────────
 
 def test_dataframe_input(block_data):
@@ -369,7 +345,7 @@ def test_corr_module_survivors_beat_noise_in_frequency(block_data):
 
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=50)
     sl = select_control(
-        n_boots=20, min_ntree=50, pi_thr=0.01,
+        n_reps=20, min_ntree=50, pi_thr=0.01,
         shadow_mode="split",
         unassigned_modules=["unassigned"],
         shadow_percentile=95,
@@ -416,7 +392,7 @@ def test_dml_classification_uses_regression_on_residual():
 
     def freq(classif):
         names, freqs = boruta_shadow_stability(
-            X_pool=Xind, feat_names=feats, y=y_res, n_boots=20, mtry_factor=1.0,
+            X_pool=Xind, feat_names=feats, y=y_res, n_reps=20, mtry_factor=1.0,
             ntree_factor=1, min_ntree=100, nodesize=5, classification=classif,
             seed=1, n_jobs=1, shadow_percentile=95)
         return dict(zip(names, freqs))["ind0"]
@@ -424,3 +400,29 @@ def test_dml_classification_uses_regression_on_residual():
     # regression (the fix) recovers the signal; classification (bug) truncates it away
     assert freq(False) > freq(True)
     assert freq(False) >= 0.5
+
+
+# ── unassigned_modules validation ─────────────────────────────────────────────
+
+def test_unassigned_modules_name_not_in_membership_warns(block_data):
+    X, y, labels, feat_names = block_data
+    sc, _ = _fast_params()
+    sl = select_control(n_reps=4, min_ntree=30, pi_thr=0.4,
+                        unassigned_modules=["no_such_module"])
+    with pytest.warns(UserWarning, match="not found in `module_membership`.*no_such_module"):
+        mf(pd.DataFrame(X, columns=feat_names), y,
+           module_membership=dict(zip(feat_names, labels)),
+           screen_params=sc, select_params=sl,
+           final_ntree=30, verbose=0, seed=42)
+
+
+def test_unassigned_modules_valid_name_is_silent(block_data):
+    import warnings
+    X, y, labels, feat_names = block_data
+    sc, sl = _fast_params()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        mf(pd.DataFrame(X, columns=feat_names), y,
+           module_membership=dict(zip(feat_names, labels)),
+           screen_params=sc, select_params=sl,
+           final_ntree=30, verbose=0, seed=42)

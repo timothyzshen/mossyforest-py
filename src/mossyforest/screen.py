@@ -1,10 +1,10 @@
 """
 Phase 1: Per-module Screening RFE.
 
-Runs rfe_loop on each module independently on the FULL dataset (no bootstrap).
+Runs rfe_loop on each module independently on the FULL dataset (no resampling).
 Retains keep_fraction of each module's features as candidates for Phase 2.
 
-Matches run_screen_rfe() from mf_python_backend.py v18.
+Matches run_screen_rfe() from mf_python_backend.py.
 """
 
 from __future__ import annotations
@@ -58,10 +58,6 @@ def run_screen_rfe(
     dict with keys:
         survivor_features  : list of lists — per-module surviving feature names
         survivor_vims      : list of lists — per-module VIM scores
-        initial_feat       : list — feature names from first RFE step
-        initial_vim        : list — VIMs from first RFE step
-        initial_survivor   : list of bool — survivor flag at first step
-        initial_module     : list — module label per row of initial_* lists
         module_list        : echoed module_list
     """
     X_mat         = np.ascontiguousarray(X_mat, dtype=np.float32)
@@ -89,7 +85,7 @@ def run_screen_rfe(
         """Screen a single module. Deterministic given `seed` → order-independent."""
         cols = mod_to_cols.get(mod, [])
         if not cols:
-            return mod, [], [], None
+            return mod, [], []
 
         X_mod    = X_mat[:, cols]
         feat_mod = [feature_names[c] for c in cols]
@@ -113,14 +109,14 @@ def run_screen_rfe(
         if verbose:
             print(f"  Module {mod}: {n_mod} features → target {target}")
 
-        survivors, vims, init_info, _ = rfe_loop(
+        survivors, vims, _ = rfe_loop(
             X_mod, feat_mod, y, target,
             sc.drop_fraction, sc.mtry_factor, sc.ntree_factor,
             sc.min_ntree, nodesize, classification, seed, 1,
             use_shap=True, backend=backend, use_numba=use_numba,
             mtry_rule=sc.mtry_rule,
         )
-        return mod, survivors, vims, init_info
+        return mod, survivors, vims
 
     # modules are independent and deterministic → parallelize the outer loop
     if n_jobs == 1:
@@ -134,27 +130,13 @@ def run_screen_rfe(
     # reassemble in module_list order (results already ordered by Parallel)
     all_survivor_features: list = []
     all_survivor_vims: list     = []
-    init_feats: list    = []
-    init_vims: list     = []
-    init_survivors: list = []
-    init_modules: list  = []
 
-    for mod, survivors, vims, init_info in results:
+    for mod, survivors, vims in results:
         all_survivor_features.append(survivors)
         all_survivor_vims.append(vims)
-        if init_info is not None:
-            n_rows = len(init_info["feature"])
-            init_feats.extend(init_info["feature"])
-            init_vims.extend(init_info["vim"])
-            init_survivors.extend(init_info["survivor"])
-            init_modules.extend([mod] * n_rows)
 
     return {
         "survivor_features": all_survivor_features,
         "survivor_vims":     all_survivor_vims,
-        "initial_feat":      init_feats,
-        "initial_vim":       init_vims,
-        "initial_survivor":  init_survivors,
-        "initial_module":    init_modules,
         "module_list":       module_list,
     }

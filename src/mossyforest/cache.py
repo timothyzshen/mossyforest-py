@@ -4,7 +4,7 @@ Phase-1 (screening) result cache.
 Screening depends only on X, y, module membership, screen_params, nodesize,
 classification, seed, max_modsize, and the SHAP backend — NOT on select_params.
 The common tuning / cross-validation workflow re-runs mf() many times varying
-only select_params (pi_thr, shadow_percentile, n_boots, ...), so caching Phase 1
+only select_params (pi_thr, shadow_percentile, n_reps, ...), so caching Phase 1
 lets those runs skip screening entirely.
 
 Two backends, chosen via the `screen_cache` argument to mf():

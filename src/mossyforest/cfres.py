@@ -1,12 +1,10 @@
 """
 cross-fit residualization (cfRes) — cross-fitted y residualization.
 
-Matches the _cross_fit_residuals() function from mf_python_backend.py v18.
-
-Unlike the old Python code (which residualized X), this matches R's cfRes:
+Mirrors _cross_fit_residuals() in inst/python/mf_python_backend.py and R's cfRes:
   y_resid = y - RF_cv(X_corr)
 
-After residualization, y_resid ≈ theta * X_ind + eps, boosting the SNR
+After residualization, y_resid ≈ theta * X_unassigned + eps, boosting the SNR
 for unassigned-pool shadow stability.
 """
 

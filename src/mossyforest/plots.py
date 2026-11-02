@@ -45,7 +45,7 @@ def plot_importance(
     ----------
     kind : "bar", "beeswarm", or "both"
     max_display : max number of features shown (None = all)
-    fill : colour for the bar chart
+    fill : color for the bar chart
     """
     shap_values = result.shap_obj["shapley_values"]
     X           = result.final_X
@@ -263,7 +263,7 @@ def plot_stability(
 def plot_stability_elbow(
     result,
     col_selected: str   = "#3e568a",
-    col_unselected: str = "gray",
+    col_unselected: str = "grey",
     col_threshold: str  = "tomato",
     col_elbow: str      = "#e07b00",
     show_labels: bool   = False,
@@ -296,10 +296,10 @@ def plot_stability_elbow(
         ax   = axes[r][c]
         pdata = sd[sd["pool"] == pool].copy()
 
-        colours = [col_selected if s else col_unselected
+        colors = [col_selected if s else col_unselected
                    for s in pdata["selected"]]
-        ax.plot(pdata["rank"], pdata["freq"], color="lightgray", linewidth=0.7)
-        ax.scatter(pdata["rank"], pdata["freq"], c=colours, s=30, alpha=0.9, zorder=3)
+        ax.plot(pdata["rank"], pdata["freq"], color="lightgrey", linewidth=0.7)
+        ax.scatter(pdata["rank"], pdata["freq"], c=colors, s=30, alpha=0.9, zorder=3)
 
         thr = pdata["threshold"].iloc[0]
         ax.axhline(thr, color=col_threshold, linestyle="--", linewidth=0.9,
@@ -425,7 +425,7 @@ def plot_decisions(
     sv_sub = sv_sorted[obs_idx]
     cumsum = np.cumsum(sv_sub, axis=1)                   # (n_sub, p)
 
-    # terminal value for colour scaling
+    # terminal value for color scaling
     last_val = cumsum[:, -1]
     norm     = mcolors.Normalize(vmin=last_val.min(), vmax=last_val.max())
     cmap     = mcolors.LinearSegmentedColormap.from_list("grad", gradient)
@@ -437,10 +437,10 @@ def plot_decisions(
     fig, ax = plt.subplots(figsize=(8, max(5, len(feat_sorted) * 0.4)))
 
     for i, obs in enumerate(obs_idx):
-        colour = cmap(norm(last_val[i]))
-        ax.plot(full_cum[i], y_ticks, color=colour, linewidth=0.8, alpha=0.7)
+        color = cmap(norm(last_val[i]))
+        ax.plot(full_cum[i], y_ticks, color=color, linewidth=0.8, alpha=0.7)
         if geom_point:
-            ax.scatter(full_cum[i], y_ticks, color=colour, s=10, zorder=3)
+            ax.scatter(full_cum[i], y_ticks, color=color, s=10, zorder=3)
 
     if base_val is not None:
         ax.axvline(base_val, color="#999999", linestyle="--", linewidth=1)
@@ -535,13 +535,13 @@ def plot_elbow(
     if color and "module_membership" in df.columns:
         unique_mods = df["module_membership"].unique()
         cmap_m      = plt.get_cmap("tab20", len(unique_mods))
-        mod_colour  = {m: cmap_m(i) for i, m in enumerate(unique_mods)}
-        colours     = df["module_membership"].map(mod_colour)
+        mod_color  = {m: cmap_m(i) for i, m in enumerate(unique_mods)}
+        colors     = df["module_membership"].map(mod_color)
     else:
-        colours = "#3e568a"
+        colors = "#3e568a"
 
-    ax.plot(df["rank"], df["variable_importance"], color="gray", linewidth=1, zorder=1)
-    ax.scatter(df["rank"], df["variable_importance"], c=colours, s=60, zorder=2)
+    ax.plot(df["rank"], df["variable_importance"], color="grey", linewidth=1, zorder=1)
+    ax.scatter(df["rank"], df["variable_importance"], c=colors, s=60, zorder=2)
 
     ax.set_xticks(df["rank"])
     ax.set_xticklabels(df["feature_name"], rotation=45, ha="right", fontsize=9)
@@ -550,7 +550,7 @@ def plot_elbow(
     ax.set_title(main, fontsize=14)
 
     if color and "module_membership" in df.columns:
-        handles = [plt.scatter([], [], c=[mod_colour[m]], label=m, s=40)
+        handles = [plt.scatter([], [], c=[mod_color[m]], label=m, s=40)
                    for m in unique_mods]
         ax.legend(handles=handles, title=color_name, fontsize=8)
 
@@ -590,19 +590,19 @@ def plot_signed_importance(
     if top_n is not None:
         df = df.iloc[-top_n:]
 
-    colours = []
+    colors = []
     for _, row in df.iterrows():
         if row.get("direction_ambiguous", False):
-            colours.append(ambiguous_color)
+            colors.append(ambiguous_color)
         elif row["signed_importance"] >= 0:
-            colours.append(pos_color)
+            colors.append(pos_color)
         else:
-            colours.append(neg_color)
+            colors.append(neg_color)
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(8, max(4, len(df) * 0.35)))
 
-    ax.barh(range(len(df)), df["signed_importance"], color=colours)
+    ax.barh(range(len(df)), df["signed_importance"], color=colors)
     ax.axvline(0, color="black", linewidth=0.8)
     ax.set_yticks(range(len(df)))
     ax.set_yticklabels(df["feature_name"])

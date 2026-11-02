@@ -79,4 +79,4 @@ __all__ = [
     "check_numba",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.1.0"

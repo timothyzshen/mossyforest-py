@@ -41,7 +41,7 @@ def block_data():
 
 def _params():
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
-    sl = select_control(n_boots=12, min_ntree=30, pi_thr=0.4,
+    sl = select_control(n_reps=12, min_ntree=30, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"])
     return sc, sl
 
@@ -113,9 +113,9 @@ def test_interaction_disabled(block_data):
 def test_early_stop_runs(block_data):
     X, y, mm = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
-    sl = select_control(n_boots=40, min_ntree=30, pi_thr=0.4,
+    sl = select_control(n_reps=40, min_ntree=30, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"],
-                        early_stop_boots=True, early_stop_tol=0.05,
+                        early_stop=True, early_stop_tol=0.05,
                         early_stop_check_every=5)
     r = mf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
            final_ntree=30, verbose=0, seed=7)
@@ -127,9 +127,9 @@ def test_early_stop_runs(block_data):
 def test_early_stop_deterministic_across_workers(block_data):
     X, y, mm = block_data
     sc = screen_control(drop_fraction=0.3, keep_fraction=0.5, min_ntree=30)
-    sl = select_control(n_boots=40, min_ntree=30, pi_thr=0.4,
+    sl = select_control(n_reps=40, min_ntree=30, pi_thr=0.4,
                         shadow_mode="split", unassigned_modules=["unassigned"],
-                        early_stop_boots=True, early_stop_tol=0.05,
+                        early_stop=True, early_stop_tol=0.05,
                         early_stop_check_every=5)
     r1 = mf(X, y, module_membership=mm, screen_params=sc, select_params=sl,
             final_ntree=30, verbose=0, seed=7, num_processors=1)

@@ -25,14 +25,9 @@ class screen_control:
         Multiplier applied to the mtry rule. Default 1.0.
     mtry_rule : str
         How mtry is derived from the feature count p.
-        "auto"     (default) — p/3 for classification, sqrt(p) for regression
-                   (the package's historical rule; preserves R parity).
-        "sqrt"     — sqrt(p) for both. Much cheaper for classification, where
-                   "auto" evaluates p/3 features per split.
+        "auto"     (default) — sqrt(p) for classification, p/3 for regression.
+        "sqrt"     — sqrt(p) for both.
         "p_over_3" — p/3 for both.
-        NOTE: the standard RF convention is the reverse of "auto"
-        (classification sqrt(p), regression p/3); "auto" is kept as the default
-        so results and R parity are unchanged unless you opt in.
     min_ntree : int
         Minimum number of trees per screening forest. Default 500.
     ntree_factor : float
@@ -66,16 +61,13 @@ class select_control:
 
     Parameters
     ----------
-    drop_fraction : float
-        Fraction of features dropped per RFE step during survivor-pool
-        pre-reduction. Default 0.10.
     mtry_factor : float
         mtry multiplier for shadow-stability RFs. Default 1.0.
     mtry_rule : str
         "auto" (default) / "sqrt" / "p_over_3" — see screen_control.mtry_rule.
     mtry_on_real : bool
         How mtry is sized on the AUGMENTED [real | shadow] matrix (2p columns).
-        False (default) — mtry = rule(2p), the historical behaviour.
+        False (default) — mtry = rule(2p).
         True — mtry = 2 * rule(p_real), so the expected number of REAL features
         offered per split matches an unaugmented forest (the shadows otherwise
         dilute real-feature sampling by ~half).
@@ -87,15 +79,15 @@ class select_control:
     ntree_factor : float
         Trees per forest scaling factor. Default 1.0. May be < 1.
     shadow_mode : str
-        "split"  — one corr pool + one ind pool evaluated separately.
+        "split"  — one corr pool + one unassigned pool evaluated separately.
         "within_module" — one shadow run per module. Default "split".
-    n_boots : int
-        Bootstrap replicates for shadow stability. Default 50.
+    n_reps : int
+        Number of subsample replicates for shadow stability (each draws half the rows without replacement). Default 50.
     pi_thr : float
         Stability frequency threshold for the corr pool (used when
         threshold_mode="pi_thr"). Default 0.60.
     pi_thr_unassigned : float or None
-        Threshold for the ind pool. None (default) = automatic elbow detection.
+        Threshold for the unassigned pool. None (default) = automatic elbow detection.
     threshold_mode : str
         How the per-pool selection cutoff is chosen.
         "pi_thr" (default) — correlated pool uses the fixed pi_thr; the
@@ -106,11 +98,11 @@ class select_control:
             package, so it breaks bit-exact R parity when enabled).
     shadow_percentile : float
         Percentile of the shadow-feature distribution used as threshold
-        within each bootstrap. Default 95.
+        within each replicate. Default 95.
     unassigned_modules : list of str or None
         Module names treated as the unassigned pool. None = no split-pool.
     use_cfres : bool
-        If True, cross-fitted RF residualizes y before the ind-pool (or
+        If True, cross-fitted RF residualizes y before the unassigned-pool (or
         per-module) stability step. Default False.
     cfres_n_folds : int
         Cross-fitting folds for cfRes residualization. Default 5.
@@ -119,25 +111,24 @@ class select_control:
     cfres_scope : str
         "unassigned" — cfRes applied only to the unassigned pool (default).
         "all_modules" — per-module cfRes applied to every module.
-    early_stop_boots : bool
-        If True, stop the bootstrap loop early once selection frequencies
-        converge (changes results by design — fewer effective boots).
+    early_stop : bool
+        If True, stop the replicate loop early once selection frequencies
+        converge (changes results by design — fewer effective replicates).
         Default False.
     early_stop_tol : float
         Convergence tolerance: stop when the max change in any feature's
         frequency between consecutive batches is below this. Default 0.01.
     early_stop_check_every : int
-        Bootstraps per batch; convergence is checked between batches.
+        Replicates per batch; convergence is checked between batches.
         Also the parallel granularity when early stopping is on. Default 10.
     """
-    drop_fraction: float = 0.10
     mtry_factor: float = 1.0
     mtry_rule: str = "auto"
     mtry_on_real: bool = False
     min_ntree: int = 500
     ntree_factor: float = 1.0
     shadow_mode: str = "split"
-    n_boots: int = 50
+    n_reps: int = 50
     pi_thr: float = 0.60
     pi_thr_unassigned: Optional[float] = None
     threshold_mode: str = "pi_thr"
@@ -147,7 +138,7 @@ class select_control:
     cfres_n_folds: int = 5
     cfres_ntree: int = 300
     cfres_scope: str = "unassigned"
-    early_stop_boots: bool = False
+    early_stop: bool = False
     early_stop_tol: float = 0.01
     early_stop_check_every: int = 10
 
@@ -168,8 +159,8 @@ class select_control:
             raise ValueError("pi_thr_unassigned must be in [0, 1]")
         if not 0 < self.shadow_percentile <= 100:
             raise ValueError("shadow_percentile must be in (0, 100]")
-        if self.n_boots < 1:
-            raise ValueError("n_boots must be >= 1")
+        if self.n_reps < 1:
+            raise ValueError("n_reps must be >= 1")
         if self.cfres_n_folds < 2:
             raise ValueError("cfres_n_folds must be >= 2")
         if self.early_stop_tol <= 0:

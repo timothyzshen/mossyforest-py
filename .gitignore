@@ -1,6 +1,13 @@
-tests/
+# R / RStudio and macOS files
+.Rproj.user/
+.Rhistory
 .RHistory
+.RData
+*.Rproj
 .DS_Store
+
+# rendered benchmark output
+benchmarks/benchmark_files/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

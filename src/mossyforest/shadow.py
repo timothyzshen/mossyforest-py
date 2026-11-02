@@ -1,7 +1,7 @@
 """
 Shadow (Boruta-style) stability selection.
 
-Per-bootstrap algorithm:
+Per-replicate algorithm:
   1. Subsample n//2 rows.
   2. Permute each real column independently → X_shadow.
   3. X_aug = [X_real | X_shadow]  (n//2 × 2p).
@@ -10,13 +10,13 @@ Per-bootstrap algorithm:
      (only the p shadow columns contribute to the null).
   6. selected_b = { j : mean|SHAP|[j] > shadow_threshold }
 
-stability_freq(j) = |selected_b| / n_valid_boots
+stability_freq(j) = |selected_b| / n_valid_reps
 
 Thresholding:
   corr pool: stable = { j : freq(j) >= pi_thr }
-  ind  pool: elbow detection (or pi_thr_unassigned if given)
+  unassigned pool: elbow detection (or pi_thr_unassigned if given)
 
-Matches _boruta_shadow_stability() from mf_python_backend.py v18.
+Matches _boruta_shadow_stability() from mf_python_backend.py.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def make_shadow_matrix(X: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     within-column permutation of the corresponding column of X.
 
     Uses rng.permuted(axis=0) — a single C-level call that shuffles each
-    column independently (replaces the per-column Python loop).
+    column independently.
     """
     X_shadow = rng.permuted(X, axis=0)
     return np.concatenate([X, X_shadow], axis=1)
@@ -59,7 +59,7 @@ def find_elbow_idx(freqs_sorted: list | np.ndarray) -> int:
     last point, and returns the 0-based index of the point furthest from
     that chord (the elbow).
 
-    Matches _find_elbow_idx() in mf_python_backend.py v18.
+    Matches _find_elbow_idx() in mf_python_backend.py.
     """
     freqs = np.asarray(freqs_sorted, dtype=np.float64)
     n     = len(freqs)
@@ -80,14 +80,13 @@ def apply_stable_threshold(
     freqs_sorted: list,
     pi_thr: float,
     use_elbow: bool = False,
-    label: str = "pool",
 ) -> tuple:
     """
     Apply stable-set threshold to shadow-stability outputs.
 
     use_elbow=False  (corr pool):
         Standard threshold: stable = { j : freq(j) >= pi_thr }.
-    use_elbow=True   (ind pool):
+    use_elbow=True   (unassigned pool):
         Elbow detection: stable = { j : freq(j) >= freqs[elbow_idx] }.
 
     Returns
@@ -113,10 +112,10 @@ def apply_stable_threshold(
         return stable, thr, None
 
 
-# ── One bootstrap round ───────────────────────────────────────────────────────
+# ── One subsample round ───────────────────────────────────────────────────────
 
-def _one_boot(
-    boot_seed: int,
+def _one_rep(
+    rep_seed: int,
     X_pool: np.ndarray,
     y: np.ndarray,
     p: int,
@@ -134,14 +133,14 @@ def _one_boot(
     mtry_on_real: bool = False,
 ):
     """
-    Run one shadow bootstrap. Returns the boolean (p,) selection mask
+    Run one shadow replicate. Returns the boolean (p,) selection mask
     (real importance > shadow percentile), or None if the round was skipped
     (degenerate label subsample / fit failure).
 
-    Fully determined by `boot_seed` so the result is independent of execution
+    Fully determined by `rep_seed` so the result is independent of execution
     order (and therefore of the number of parallel workers).
     """
-    rng = np.random.default_rng(int(boot_seed))
+    rng = np.random.default_rng(int(rep_seed))
 
     idx        = rng.choice(n, size=n // 2, replace=False)
     X_real_sub = X_pool[idx]
@@ -161,7 +160,7 @@ def _one_boot(
                                        mtry_rule, mtry_on_real)
     ntree    = _compute_ntree(n_aug, ntree_factor, min_ntree)
 
-    rf = _build_rf(ntree, mtry_aug, nodesize, int(boot_seed), 1, classification)
+    rf = _build_rf(ntree, mtry_aug, nodesize, int(rep_seed), 1, classification)
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -194,7 +193,7 @@ def boruta_shadow_stability(
     X_pool: np.ndarray,
     feat_names: list,
     y: np.ndarray,
-    n_boots: int,
+    n_reps: int,
     mtry_factor: float,
     ntree_factor: float,
     min_ntree: int,
@@ -207,20 +206,20 @@ def boruta_shadow_stability(
     backend: str = "shap",
     use_numba: bool = False,
     blas_threads=None,
-    early_stop_boots: bool = False,
+    early_stop: bool = False,
     early_stop_tol: float = 0.01,
     early_stop_check_every: int = 10,
     mtry_rule: str = "auto",
     mtry_on_real: bool = False,
 ) -> tuple:
     """
-    Shadow-feature bootstrap stability selection on a single feature pool.
+    Shadow-feature subsample stability selection on a single feature pool.
 
-    Each bootstrap gets a deterministic seed derived from `seed` via
+    Each replicate gets a deterministic seed derived from `seed` via
     SeedSequence, so results are independent of the number of parallel workers
     (n_jobs=1 and n_jobs=8 produce identical output).
 
-    When early_stop_boots is True, bootstraps run in batches of
+    When early_stop is True, replicates run in batches of
     early_stop_check_every and the loop stops once the maximum change in any
     feature's frequency between batches falls below early_stop_tol.
 
@@ -238,8 +237,8 @@ def boruta_shadow_stability(
 
     X_pool = np.ascontiguousarray(X_pool, dtype=np.float32)
 
-    # deterministic per-bootstrap seeds (order-independent)
-    boot_seeds = np.random.SeedSequence(int(seed)).generate_state(int(n_boots))
+    # deterministic per-replicate seeds (order-independent)
+    rep_seeds = np.random.SeedSequence(int(seed)).generate_state(int(n_reps))
 
     counts     = np.zeros(p, dtype=np.float64)   # selection counts → frequency
     n_valid    = 0
@@ -249,7 +248,7 @@ def boruta_shadow_stability(
         if n_jobs == 1:
             with thread_limit_ctx(limit):
                 return [
-                    _one_boot(s, X_pool, y, p, n, mtry_factor, ntree_factor,
+                    _one_rep(s, X_pool, y, p, n, mtry_factor, ntree_factor,
                               min_ntree, nodesize, classification, use_shap,
                               shadow_percentile, backend, use_numba,
                               mtry_rule, mtry_on_real)
@@ -257,7 +256,7 @@ def boruta_shadow_stability(
                 ]
         with thread_limit_ctx(limit):
             return Parallel(n_jobs=n_jobs, prefer="threads")(
-                delayed(_one_boot)(
+                delayed(_one_rep)(
                     s, X_pool, y, p, n, mtry_factor, ntree_factor,
                     min_ntree, nodesize, classification, use_shap,
                     shadow_percentile, backend, use_numba,
@@ -272,14 +271,14 @@ def boruta_shadow_stability(
         counts[res] += 1.0
         n_valid     += 1
 
-    if not early_stop_boots:
-        for res in _run_batch(boot_seeds):
+    if not early_stop:
+        for res in _run_batch(rep_seeds):
             _accumulate(res)
     else:
         prev_freqs = None
         step = max(1, int(early_stop_check_every))
-        for start in range(0, len(boot_seeds), step):
-            batch = boot_seeds[start:start + step]
+        for start in range(0, len(rep_seeds), step):
+            batch = rep_seeds[start:start + step]
             for res in _run_batch(batch):
                 _accumulate(res)
             if n_valid == 0:
