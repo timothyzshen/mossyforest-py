@@ -186,3 +186,6 @@ cython_debug/
 
 
 
+
+.Rapp.history
+.DS_Store

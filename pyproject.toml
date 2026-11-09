@@ -43,6 +43,8 @@ dependencies = [
 # automatic module detection, needed only for wmf() and detect_modules()
 wgcna = [
     "PyWGCNA>=2.0",
+    # PyWGCNA 2.x fails under pandas 3 ("assignment destination is read-only")
+    "pandas<3",
 ]
 docs = [
     "mkdocs-material>=9.5",
@@ -67,7 +69,7 @@ dev = [
 
 [project.urls]
 Homepage      = "https://github.com/timothyzshen/mossyforest-py"
-Documentation = "https://github.com/timothyzshen/mossyforest-py#readme"
+Documentation = "https://timothyzshen.github.io/mossyforest-py/"
 Changelog     = "https://github.com/timothyzshen/mossyforest-py/blob/main/CHANGELOG.md"
 Issues        = "https://github.com/timothyzshen/mossyforest-py/issues"
 "R package"   = "https://timothyzshen.github.io/mossyforest/"

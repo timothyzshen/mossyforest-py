@@ -34,3 +34,25 @@ jobs:
 
       - name: Run tests
         run: python -m pytest tests -q
+
+  wgcna:
+    name: wmf() with PyWGCNA
+    runs-on: ubuntu-latest
+    env:
+      MPLBACKEND: Agg
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install the package with the wgcna extra
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,wgcna]"
+
+      - name: Run the wmf() tests
+        run: python -m pytest tests/test_wsf.py -q
