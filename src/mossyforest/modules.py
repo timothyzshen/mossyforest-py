@@ -3,7 +3,7 @@ Module detection via PyWGCNA.
 
 Wraps the real PyWGCNA API to return a simple array of module labels
 aligned with the columns of X.  The "grey" module (unassigned genes)
-is relabelled "unassigned" to match the R package convention.
+is relabeled "unassigned" to match the R package convention.
 
 PyWGCNA API reference:
     https://github.com/mortazavilab/PyWGCNA
@@ -39,14 +39,14 @@ def detect_modules(
     Parameters
     ----------
     X : array of shape (n_samples, n_features)
-        Expression / feature matrix — rows are samples, columns are features.
+        Expression / feature matrix: rows are samples, columns are features.
     feature_names : list of str, optional
         Column names for X. Defaults to ["X0", "X1", ...].
     r2_threshold : float
-        Minimum scale-free topology R² for automatic soft-power selection.
+        Minimum scale free topology R² for automatic soft power selection.
         PyWGCNA picks the lowest power whose R² >= r2_threshold.
     mean_cut : float
-        Maximum mean connectivity allowed during soft-power selection.
+        Maximum mean connectivity allowed during soft power selection.
     min_module_size : int
         Minimum number of features per module.
     merge_cut_height : float
@@ -61,7 +61,7 @@ def detect_modules(
     Returns
     -------
     labels : np.ndarray of shape (n_features,), dtype str
-        Module name per feature. Unassigned features → "unassigned".
+        Module name per feature. Unassigned features are labeled "unassigned".
     """
     try:
         import PyWGCNA
@@ -77,7 +77,7 @@ def detect_modules(
 
     # PyWGCNA's geneExp is samples × genes (rows = samples, cols = genes/features).
     # After runWGCNA(), datExpr.var is indexed by gene (feature) and carries the
-    # "moduleColors" assignment — so we must NOT transpose here.
+    # "moduleColors" assignment, so we do not transpose here.
     sample_names = [f"S{i}" for i in range(n_samples)]
     gene_expr_df = pd.DataFrame(
         X,
@@ -88,7 +88,7 @@ def detect_modules(
     wgcna = PyWGCNA.WGCNA(
         name="mossyforest",
         geneExp=gene_expr_df,
-        TPMcutoff=0,            # data already preprocessed — no TPM filter
+        TPMcutoff=0,            # data already preprocessed, no TPM filter
         RsquaredCut=r2_threshold,
         MeanCut=mean_cut,
         minModuleSize=min_module_size,
@@ -113,13 +113,13 @@ def detect_modules(
     # index by feature name so we can realign to the original column order
     label_map = dict(zip(var.index.astype(str), raw.values))
 
-    # WGCNA's goodSamplesGenes can drop zero-variance / bad features; any feature
+    # WGCNA's goodSamplesGenes can drop zero variance / bad features; any feature
     # not assigned a module is treated as unassigned ("grey").
     raw_labels = np.array(
         [label_map.get(str(f), "grey") for f in feature_names], dtype=object
     )
 
-    # Recode grey (unassigned) → "unassigned" to match the R package convention.
+    # Recode grey (unassigned) to "unassigned" to match the R package convention.
     labels = np.where(raw_labels == "grey", "unassigned", raw_labels).astype(str)
     return labels
 
@@ -132,13 +132,13 @@ def pick_soft_threshold(
     network_type: str = "signed hybrid",
 ) -> tuple[int, pd.DataFrame]:
     """
-    Run PyWGCNA's soft-threshold selection and return the chosen power
+    Run PyWGCNA's soft threshold selection and return the chosen power
     plus the full fit table (for plotting).
 
     Parameters
     ----------
     X : array of shape (n_samples, n_features)
-    powers : list of candidate powers; defaults to 1–20
+    powers : list of candidate powers; defaults to 1 to 20
     r2_threshold : float
         R² target; passed to PyWGCNA as RsquaredCut.
     network_type : str
@@ -146,9 +146,9 @@ def pick_soft_threshold(
     Returns
     -------
     power_estimate : int
-        Chosen soft-threshold power.
+        Chosen soft threshold power.
     datout : pd.DataFrame
-        Full fit table — columns include "Power", "SFT.R.sq", "mean.k."
+        Full fit table: columns include "Power", "SFT.R.sq", "mean.k."
     """
     try:
         import PyWGCNA
@@ -164,7 +164,7 @@ def pick_soft_threshold(
     if feature_names is None:
         feature_names = [f"X{i}" for i in range(n_features)]
 
-    # pickSoftThreshold (dataIsExpr=True) expects samples × genes — no transpose.
+    # pickSoftThreshold (dataIsExpr=True) expects samples × genes, no transpose.
     gene_expr_df = pd.DataFrame(
         X,
         index=[f"S{i}" for i in range(n_samples)],

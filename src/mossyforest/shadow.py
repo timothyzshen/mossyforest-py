@@ -1,9 +1,9 @@
 """
-Shadow (Boruta-style) stability selection.
+Shadow (Boruta style) stability selection.
 
-Per-replicate algorithm:
+Per replicate algorithm:
   1. Subsample n//2 rows.
-  2. Permute each real column independently → X_shadow.
+  2. Permute each real column independently to get X_shadow.
   3. X_aug = [X_real | X_shadow]  (n//2 × 2p).
   4. Fit RF; compute mean|SHAP| on X_aug.
   5. shadow_threshold = percentile(mean|SHAP|[p:], shadow_percentile)
@@ -32,30 +32,30 @@ from .rfe import (
     _compute_ntree,
     shap_mean_abs,
 )
-from .threads import thread_limit_ctx
+from .utils import thread_limit_ctx
 
 
-# ── Shadow matrix ─────────────────────────────────────────────────────────────
+# Shadow matrix
 
 def make_shadow_matrix(X: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     """
     Return X_aug = [X | X_shadow] where each shadow column is an independent
-    within-column permutation of the corresponding column of X.
+    within column permutation of the corresponding column of X.
 
-    Uses rng.permuted(axis=0) — a single C-level call that shuffles each
+    Uses rng.permuted(axis=0), a single C level call that shuffles each
     column independently.
     """
     X_shadow = rng.permuted(X, axis=0)
     return np.concatenate([X, X_shadow], axis=1)
 
 
-# ── Elbow detection ───────────────────────────────────────────────────────────
+# Elbow detection
 
 def find_elbow_idx(freqs_sorted: list | np.ndarray) -> int:
     """
-    Perpendicular-distance elbow on a descending frequency array.
+    Perpendicular distance elbow on a descending frequency array.
 
-    Normalises both axes to [0, 1], draws the chord from the first to the
+    Normalizes both axes to [0, 1], draws the chord from the first to the
     last point, and returns the 0-based index of the point furthest from
     that chord (the elbow).
 
@@ -82,7 +82,7 @@ def apply_stable_threshold(
     use_elbow: bool = False,
 ) -> tuple:
     """
-    Apply stable-set threshold to shadow-stability outputs.
+    Apply stable set threshold to shadow stability outputs.
 
     use_elbow=False  (corr pool):
         Standard threshold: stable = { j : freq(j) >= pi_thr }.
@@ -112,7 +112,7 @@ def apply_stable_threshold(
         return stable, thr, None
 
 
-# ── One subsample round ───────────────────────────────────────────────────────
+# One subsample round
 
 def _one_rep(
     rep_seed: int,
@@ -149,7 +149,7 @@ def _one_rep(
     if classification and len(np.unique(y_sub)) < 2:
         return None
 
-    # shadow: each column independently permuted (C-level), preallocated buffer
+    # shadow: each column independently permuted (C level), preallocated buffer
     n_sub = X_real_sub.shape[0]
     X_aug = np.empty((n_sub, 2 * p), dtype=np.float32)
     X_aug[:, :p] = X_real_sub
@@ -187,7 +187,7 @@ def _one_rep(
     return vim_real > threshold
 
 
-# ── Boruta shadow stability ───────────────────────────────────────────────────
+# Boruta shadow stability
 
 def boruta_shadow_stability(
     X_pool: np.ndarray,
@@ -213,7 +213,7 @@ def boruta_shadow_stability(
     mtry_on_real: bool = False,
 ) -> tuple:
     """
-    Shadow-feature subsample stability selection on a single feature pool.
+    Shadow feature subsample stability selection on a single feature pool.
 
     Each replicate gets a deterministic seed derived from `seed` via
     SeedSequence, so results are independent of the number of parallel workers
@@ -237,10 +237,10 @@ def boruta_shadow_stability(
 
     X_pool = np.ascontiguousarray(X_pool, dtype=np.float32)
 
-    # deterministic per-replicate seeds (order-independent)
+    # deterministic per replicate seeds (order independent)
     rep_seeds = np.random.SeedSequence(int(seed)).generate_state(int(n_reps))
 
-    counts     = np.zeros(p, dtype=np.float64)   # selection counts → frequency
+    counts     = np.zeros(p, dtype=np.float64)   # selection counts, used for frequency
     n_valid    = 0
     limit      = blas_threads
 

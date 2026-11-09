@@ -1,5 +1,5 @@
 ---
-title: "MossyForest — Speed Benchmark"
+title: "MossyForest, Speed Benchmark"
 subtitle: "Standalone Python package configurations vs. the R reticulate backend"
 format:
   html:
@@ -13,10 +13,10 @@ jupyter: python3
 
 This document compares wall-clock runtime of `mossyforest.mf()` across:
 
-1. **Configurations of the standalone Python package** — sequential vs.
+1. **Configurations of the standalone Python package**: sequential vs.
    parallel (`num_processors`), with/without Numba, and the cost of
    materializing the (lazy) TreeSHAP interaction matrix.
-2. **The R package's reticulate path** — `mf(..., backend="python")` in R,
+2. **The R package's reticulate path**: `mf(..., backend="python")` in R,
    which calls `inst/python/mf_python_backend.py` through reticulate.
 
 All runs use an **identical synthetic dataset** (300 samples × 64 features:
@@ -56,7 +56,7 @@ X, y, mm = make_data()
 print(f"dataset: {X.shape[0]} samples x {X.shape[1]} features")
 ```
 
-## Python package — configuration sweep
+## Python package: configuration sweep
 
 Each row is one `mf()` call. The first call is a warm-up (not timed) so import
 and JIT-compilation costs don't pollute the measurements.
@@ -84,10 +84,10 @@ all_rows = py_rows + r_rows
 print_table(all_rows)
 ```
 
-## Screening cache — tuning-sweep speedup
+## Screening cache: tuning-sweep speedup
 
 Phase 1 (screening) depends only on `X`, `y`, module membership, `screen_params`,
-and the seed — **not** on `select_params`. A tuning sweep over `pi_thr` (or CV)
+and the seed, **not** on `select_params`. A tuning sweep over `pi_thr` (or CV)
 therefore recomputes identical screening every run. `screen_cache=True` caches it
 so only the first run pays for Phase 1.
 
@@ -145,28 +145,28 @@ Your numbers will vary with cores and dataset size.
 ## How to read this
 
 - **Standalone Python ≈ 1.6× faster than R-via-reticulate** (11.3 s vs 18.1 s)
-  on identical data — from float32, the parallel replicate loop, and avoiding
+  on identical data, from float32, the parallel replicate loop, and avoiding
   reticulate's R↔Python marshalling. The R backend's replicate loop is still
   sequential, so extra `num_processors` barely helps it (18.1 → 16.9 s).
 
 - **Parallelism (`num_processors`) gives a modest ~1.14× here** because the
   dataset is small (sub-second RF fits, so thread overhead dominates). The
-  speedup grows with `n`, `n_features`, `n_reps`, and module count — scale the
+  speedup grows with `n`, `n_features`, `n_reps`, and module count; scale the
   dataset in `make_data()` to see it widen. Determinism holds regardless of
   worker count (see `tests/test_optimizations.py::test_parallel_matches_sequential`).
 
-- **Numba is marginal** (~0.97–1.0×): the JIT'd mean‖SHAP‖ reduction is a tiny
+- **Numba is marginal** (~0.97 to 1.0×): the JIT'd mean‖SHAP‖ reduction is a tiny
   slice of runtime next to TreeSHAP itself. It only helps at large `n_samples`,
   and even then modestly. Left off by default.
 
-- **The interaction matrix costs ~1.5 s** (9.97 → 11.55 s) — which is exactly
+- **The interaction matrix costs ~1.5 s** (9.97 → 11.55 s), which is exactly
   why it is computed *lazily*. You pay it only when you access
   `result.interaction_matrix` / `detect_interaction()` /
   `plot_potential_interactions()`, not on every `fit()`.
 
 ## Rendering
 
-`quarto` is not required to get the numbers — you can just run:
+`quarto` is not required to get the numbers; you can just run:
 
 ```bash
 python benchmarks/bench_common.py

@@ -1,7 +1,7 @@
 """
-End-to-end smoke test for wmf() — the WGCNA + MossyForest path.
+End-to-end smoke test for wmf(): the WGCNA + MossyForest path.
 
-Runs real PyWGCNA module detection (not mocked), then the full two-phase
+Runs real PyWGCNA module detection (not mocked), then the full two phase
 selection. Marked 'wgcna' so it can be deselected with `-m "not wgcna"` if
 PyWGCNA is slow/unavailable in a given environment.
 """

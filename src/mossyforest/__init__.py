@@ -1,20 +1,19 @@
 """
-MossyForest — network-aware stable feature selection via
-Shapley-augmented random forests and shadow-stability selection.
+MossyForest
 
 Primary API (matching R):
-    mf()             — two-phase feature selection
-    wmf()            — mf() with integrated WGCNA module detection
-    MossyForest    — sklearn-compatible estimator wrapper
+    mf():             two phase feature selection
+    wmf():            mf() with integrated WGCNA module detection
+    MossyForest:    sklearn compatible estimator wrapper
 
 Parameter objects:
-    screen_control   — Phase 1 (screening RFE) parameters
-    select_control   — Phase 2 (shadow-stability) parameters
-    WGCNA_control    — WGCNA module detection parameters
+    screen_control:   Phase 1 (screening RFE) parameters
+    select_control:   Phase 2 (shadow stability) parameters
+    WGCNA_control:    WGCNA module detection parameters
 
 Module detection:
-    detect_modules       — run PyWGCNA on a feature matrix
-    pick_soft_threshold  — WGCNA soft-power selection
+    detect_modules:       run PyWGCNA on a feature matrix
+    pick_soft_threshold:  WGCNA soft power selection
 
 Plot functions:
     plot_importance, plot_waterfall, plot_force,
@@ -44,7 +43,7 @@ from .plots import (
     plot_soft_threshold,
 )
 from .utils import check_blas, check_numba
-from .cache import clear_memory_cache
+from .screen import clear_memory_cache
 
 __all__ = [
     # main API

@@ -1,5 +1,5 @@
 """
-R <-> Python end-to-end parity harness.
+R and Python end-to-end parity harness.
 
 Runs the standalone Python package and the R package's mf(backend="python")
 on IDENTICAL data + seed, with R's reticulate pinned to the same Python

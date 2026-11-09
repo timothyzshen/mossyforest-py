@@ -14,7 +14,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 
 
-# ── Optional Numba acceleration ───────────────────────────────────────────────
+# Optional Numba acceleration
 try:
     from numba import njit
 
@@ -51,18 +51,18 @@ def _mean_abs_axis0(arr: np.ndarray, use_numba: bool = False) -> np.ndarray:
     return np.mean(np.abs(arr), axis=0)
 
 
-# ── SHAP backend factory ──────────────────────────────────────────────────────
+# SHAP backend factory
 
 def _tree_explainer(rf, backend: str = "shap"):
     """
     Return a TreeSHAP explainer from the requested backend.
 
-    backend="shap"          → shap.TreeExplainer (default).
-    backend="fasttreeshap"  → fasttreeshap.TreeExplainer in exact mode
+    backend="shap"          uses shap.TreeExplainer (default).
+    backend="fasttreeshap"  uses fasttreeshap.TreeExplainer in exact mode
                               (algorithm="v2"), which returns identical values
                               to shap but is faster. Requires fasttreeshap.
 
-    Compatibility note: fasttreeshap pins shap<0.46 → numpy<2, an older stack
+    Compatibility note: fasttreeshap pins shap<0.46 and numpy<2, an older stack
     with no wheels for Python >=3.12. It is therefore only usable on Python
     <=3.11 with numpy<2 / shap<0.46. On a modern stack the import below fails
     with a clear message and you should keep the default backend="shap".
@@ -82,17 +82,17 @@ def _tree_explainer(rf, backend: str = "shap"):
     return _shap.TreeExplainer(rf)
 
 
-# ── RF / mtry / ntree helpers ─────────────────────────────────────────────────
+# RF / mtry / ntree helpers
 
 def _compute_mtry(n_features: int, mtry_factor: float, classification: bool,
                   rule: str = "auto") -> int:
     """
     Features considered per split.
 
-    rule="auto"     — sqrt(p) (classification) / p/3 (regression), the
-                      standard random-forest convention.
-    rule="sqrt"     — sqrt(p) for both.
-    rule="p_over_3" — p/3 for both.
+    rule="auto":     sqrt(p) (classification) / p/3 (regression), the
+                      standard random forest convention.
+    rule="sqrt":     sqrt(p) for both.
+    rule="p_over_3": p/3 for both.
     """
     if rule == "sqrt":
         base = math.sqrt(n_features)
@@ -108,8 +108,8 @@ def _compute_mtry_augmented(p_real: int, mtry_factor: float, classification: boo
     """
     mtry for the augmented [real | shadow] matrix (2*p_real columns).
 
-    on_real=False — mtry = rule(2p)          (default)
-    on_real=True  — mtry = 2 * rule(p_real)  (keeps the expected number of REAL
+    on_real=False: mtry = rule(2p)          (default)
+    on_real=True:  mtry = 2 * rule(p_real)  (keeps the expected number of REAL
                     features per split equal to an unaugmented forest; a
                     statistical correction, NOT a speedup)
     """
@@ -150,17 +150,17 @@ def _map_labels(y: np.ndarray) -> np.ndarray:
     return np.array([lmap[v] for v in y], dtype=int)
 
 
-# ── SHAP helpers ──────────────────────────────────────────────────────────────
+# SHAP helpers
 
 def shap_mean_abs(
     rf, X: np.ndarray, classification: bool,
     backend: str = "shap", use_numba: bool = False,
 ) -> np.ndarray:
     """
-    Mean absolute SHAP values — shape (n_features,).
+    Mean absolute SHAP values: shape (n_features,).
 
-    Handles both list-of-arrays and ndarray outputs of shap (version dependent).
-    For binary classification: class-1 SHAP. For multiclass: mean |SHAP| across classes.
+    Handles both list of arrays and ndarray outputs of shap (version dependent).
+    For binary classification: class 1 SHAP. For multiclass: mean |SHAP| across classes.
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -190,9 +190,9 @@ def shap_full_signed(
     rf, X: np.ndarray, classification: bool, backend: str = "shap",
 ) -> np.ndarray:
     """
-    Signed SHAP matrix — shape (n_samples, n_features).
+    Signed SHAP matrix: shape (n_samples, n_features).
 
-    For binary classification: class-1 SHAP values.
+    For binary classification: class 1 SHAP values.
     For multiclass: mean across classes.
     """
     with warnings.catch_warnings():
@@ -225,8 +225,8 @@ def shap_interaction_matrix(
     """
     p×p mean absolute TreeSHAP interaction matrix.
 
-    Diagonal = mean |main effect|. Off-diagonal = mean |pairwise interaction|.
-    Matrix is symmetric and non-negative.
+    Diagonal = mean |main effect|. Off diagonal = mean |pairwise interaction|.
+    Matrix is symmetric and nonnegative.
     """
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -254,7 +254,7 @@ def shap_interaction_matrix(
     return np.mean(np.abs(iv), axis=0)
 
 
-# ── RFE loop ──────────────────────────────────────────────────────────────────
+# RFE loop
 
 def rfe_loop(
     X_mod: np.ndarray,
@@ -277,7 +277,7 @@ def rfe_loop(
     """
     Recursive feature elimination until `target` features remain.
 
-    At each step: fit RF → compute mean|SHAP| → drop top drop_fraction
+    At each step: fit RF, compute mean|SHAP|, then drop top drop_fraction
     weakest features. Repeats until exactly `target` features remain.
 
     Returns
@@ -339,7 +339,7 @@ def rfe_loop(
     return survivors, survivor_vims, all_steps
 
 
-# ── Blockwise pre-reduction ───────────────────────────────────────────────────
+# Blockwise pre reduction
 
 def blockwise_reduce(
     X_mod: np.ndarray,

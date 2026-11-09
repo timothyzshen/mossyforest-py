@@ -3,13 +3,13 @@ In-process parity verification: standalone package vs. the R package's Python
 backend (inst/python/mf_python_backend.py), run in ONE Python process on
 identical in-memory data + seed + library stack.
 
-This is the definitive parity check — it removes R, reticulate, CSV round-trips,
+This is the definitive parity check, it removes R, reticulate, CSV round-trips,
 and stack differences, so any remaining difference is purely the two codebases.
 
 It answers three questions:
-  1. Does float32 (package) vs float64 (backend) change SHAP values?  -> No.
-  2. Do the two pipelines agree phase-by-phase?                       -> Yes, exactly.
-  3. Is the signed SHAP matrix identical?                              -> Yes (Δ = 0).
+  1. Does float32 (package) vs float64 (backend) change SHAP values?  No.
+  2. Do the two pipelines agree phase by phase?                       Yes, exactly.
+  3. Is the signed SHAP matrix identical?                              Yes (Δ = 0).
 
 Run:  python benchmarks/parity_in_process.py
 """
@@ -66,11 +66,11 @@ def experiment_shap_dtype():
 
     d = np.abs(sv(X64) - sv(X32))
     print("── Q1: SHAP on float64-X vs float32-X (same model) ──")
-    print(f"   max |Δ SHAP| = {d.max():.3e}   (0 ⇒ dtype is irrelevant to SHAP)\n")
+    print(f"   max |Δ SHAP| = {d.max():.3e}   (0 means dtype is irrelevant to SHAP)\n")
 
 
 def run_backend(X, y, feats, labels):
-    """Mirror what R's mf(backend='python') does: screen -> assemble -> select."""
+    """Mirror what R's mf(backend='python') does: screen, assemble, then select."""
     module_list = list(dict.fromkeys(labels))
     scr = bk.run_screen_rfe(
         X_mat=X.astype(np.float64), y=y, feature_names=feats,
@@ -137,7 +137,7 @@ def main():
     print(f"   max |Δ SHAP| = {d.max():.3e}   mean |Δ SHAP| = {d.mean():.3e}")
 
     exact = scr_ok and set(pkg_sel) == set(bk_sel) and dfreq == 0 and d.max() == 0
-    print("\nVERDICT:", "EXACT PARITY ✓" if exact else "divergence detected — investigate")
+    print("\nVERDICT:", "EXACT PARITY ✓" if exact else "divergence detected, investigate")
 
 
 if __name__ == "__main__":

@@ -139,7 +139,7 @@ def print_table(rows, baseline_label="py: baseline (n_jobs=1)"):
     print(f"\n{'configuration':42s} {'time(s)':>9s} {'speedup':>8s} {'stable':>7s}")
     print("-" * 70)
     for lbl, secs, nstab in rows:
-        sp = f"{base/secs:.2f}x" if (base and secs == secs and secs > 0) else "—"
+        sp = f"{base/secs:.2f}x" if (base and secs == secs and secs > 0) else "n/a"
         secs_s = f"{secs:.2f}" if secs == secs else "n/a"
         print(f"{lbl:42s} {secs_s:>9s} {sp:>8s} {str(nstab):>7s}")
 

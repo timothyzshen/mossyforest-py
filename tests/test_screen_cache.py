@@ -18,7 +18,7 @@ import pytest
 
 import mossyforest.core as core
 from mossyforest import mf, screen_control, select_control, clear_memory_cache
-from mossyforest import cache as cache_mod
+from mossyforest import screen as cache_mod
 
 
 @pytest.fixture
@@ -52,12 +52,12 @@ def setup_function():
 # ── memory cache: hit on differing select_params ──────────────────────────────
 
 def test_memory_cache_hit_skips_screening(data):
-    # first run: miss → screening runs once
+    # first run: miss, so screening runs once
     _sf(data, cache=True, n_reps=8)
     assert cache_mod.STATS["misses"] == 1
     assert cache_mod.STATS["hits"] == 0
 
-    # second run differs ONLY in select_params (n_reps) → should hit
+    # second run differs ONLY in select_params (n_reps), so should hit
     with patch("mossyforest.core.run_screen_rfe",
                side_effect=AssertionError("screening should not re-run on a cache hit")):
         _sf(data, cache=True, n_reps=20)
@@ -66,7 +66,7 @@ def test_memory_cache_hit_skips_screening(data):
 
 def test_cached_survivors_identical(data):
     r1 = _sf(data, cache=True, n_reps=8)
-    r2 = _sf(data, cache=True, n_reps=8)   # identical inputs → cache hit
+    r2 = _sf(data, cache=True, n_reps=8)   # identical inputs, so cache hit
     s1 = {m: list(df["features"]) for m, df in r1.survivor_list.items()}
     s2 = {m: list(df["features"]) for m, df in r2.survivor_list.items()}
     assert s1 == s2
@@ -114,7 +114,7 @@ def test_disk_cache(tmp_path, data):
 # ── no caching by default ─────────────────────────────────────────────────────
 
 def test_no_cache_by_default(data):
-    # screen_cache=None → screening always runs; STATS untouched
+    # screen_cache=None, so screening always runs; STATS untouched
     before = dict(cache_mod.STATS)
     _sf(data, cache=None, n_reps=8)
     assert cache_mod.STATS == before

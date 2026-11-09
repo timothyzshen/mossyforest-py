@@ -11,7 +11,7 @@ from typing import List, Optional
 @dataclass
 class screen_control:
     """
-    Parameters for Phase 1 (per-module screening RFE).
+    Parameters for Phase 1 (per module screening RFE).
 
     Matches R's screen_control().
 
@@ -25,14 +25,14 @@ class screen_control:
         Multiplier applied to the mtry rule. Default 1.0.
     mtry_rule : str
         How mtry is derived from the feature count p.
-        "auto"     (default) — sqrt(p) for classification, p/3 for regression.
-        "sqrt"     — sqrt(p) for both.
-        "p_over_3" — p/3 for both.
+        "auto"     (default): sqrt(p) for classification, p/3 for regression.
+        "sqrt":     sqrt(p) for both.
+        "p_over_3": p/3 for both.
     min_ntree : int
         Minimum number of trees per screening forest. Default 500.
     ntree_factor : float
         Trees per forest = max(p * ntree_factor, min_ntree). Default 1.0.
-        May be < 1 to reduce the tree count (e.g. 0.5 halves the p-scaled term).
+        May be < 1 to reduce the tree count (e.g. 0.5 halves the p scaled term).
     """
     drop_fraction: float = 0.25
     keep_fraction: float = 0.50
@@ -55,23 +55,23 @@ class screen_control:
 @dataclass
 class select_control:
     """
-    Parameters for Phase 2 (shadow-stability selection).
+    Parameters for Phase 2 (shadow stability selection).
 
     Matches R's select_control().
 
     Parameters
     ----------
     mtry_factor : float
-        mtry multiplier for shadow-stability RFs. Default 1.0.
+        mtry multiplier for shadow stability RFs. Default 1.0.
     mtry_rule : str
-        "auto" (default) / "sqrt" / "p_over_3" — see screen_control.mtry_rule.
+        "auto" (default) / "sqrt" / "p_over_3": see screen_control.mtry_rule.
     mtry_on_real : bool
         How mtry is sized on the AUGMENTED [real | shadow] matrix (2p columns).
-        False (default) — mtry = rule(2p).
-        True — mtry = 2 * rule(p_real), so the expected number of REAL features
+        False (default): mtry = rule(2p).
+        True: mtry = 2 * rule(p_real), so the expected number of REAL features
         offered per split matches an unaugmented forest (the shadows otherwise
-        dilute real-feature sampling by ~half).
-        NOTE: this is a STATISTICAL correction, not a speed optimisation — for
+        dilute real feature sampling by ~half).
+        NOTE: this is a STATISTICAL correction, not a speed optimization; for
         the "sqrt" rule it is ~1.4x SLOWER (2*sqrt(p) > sqrt(2p)); for "p_over_3"
         it is identical (2*(p/3) == 2p/3).
     min_ntree : int
@@ -79,8 +79,8 @@ class select_control:
     ntree_factor : float
         Trees per forest scaling factor. Default 1.0. May be < 1.
     shadow_mode : str
-        "split"  — one corr pool + one unassigned pool evaluated separately.
-        "within_module" — one shadow run per module. Default "split".
+        "split":  one corr pool + one unassigned pool evaluated separately.
+        "within_module": one shadow run per module. Default "split".
     n_reps : int
         Number of subsample replicates for shadow stability (each draws half the rows without replacement). Default 50.
     pi_thr : float
@@ -89,31 +89,31 @@ class select_control:
     pi_thr_unassigned : float or None
         Threshold for the unassigned pool. None (default) = automatic elbow detection.
     threshold_mode : str
-        How the per-pool selection cutoff is chosen.
-        "pi_thr" (default) — correlated pool uses the fixed pi_thr; the
+        How the per pool selection cutoff is chosen.
+        "pi_thr" (default): correlated pool uses the fixed pi_thr; the
             unassigned pool uses elbow detection (or pi_thr_unassigned). This
             matches the R package.
-        "elbow" — BOTH pools use the same adaptive elbow rule (unified
-            selection philosophy; a Python-only extension not in the R
-            package, so it breaks bit-exact R parity when enabled).
+        "elbow": BOTH pools use the same adaptive elbow rule (unified
+            selection philosophy; a Python only extension not in the R
+            package, so it breaks bit exact R parity when enabled).
     shadow_percentile : float
-        Percentile of the shadow-feature distribution used as threshold
+        Percentile of the shadow feature distribution used as threshold
         within each replicate. Default 95.
     unassigned_modules : list of str or None
-        Module names treated as the unassigned pool. None = no split-pool.
+        Module names treated as the unassigned pool. None = no split pool.
     use_cfres : bool
-        If True, cross-fitted RF residualizes y before the unassigned-pool (or
-        per-module) stability step. Default False.
+        If True, cross fitted RF residualizes y before the unassigned pool (or
+        per module) stability step. Default False.
     cfres_n_folds : int
-        Cross-fitting folds for cfRes residualization. Default 5.
+        Cross fitting folds for cfRes residualization. Default 5.
     cfres_ntree : int
-        Trees per fold-RF in cfRes residualization. Default 300.
+        Trees per fold RF in cfRes residualization. Default 300.
     cfres_scope : str
-        "unassigned" — cfRes applied only to the unassigned pool (default).
-        "all_modules" — per-module cfRes applied to every module.
+        "unassigned": cfRes applied only to the unassigned pool (default).
+        "all_modules": per module cfRes applied to every module.
     early_stop : bool
         If True, stop the replicate loop early once selection frequencies
-        converge (changes results by design — fewer effective replicates).
+        converge (changes results by design: fewer effective replicates).
         Default False.
     early_stop_tol : float
         Convergence tolerance: stop when the max change in any feature's
@@ -179,7 +179,7 @@ class WGCNA_control:
     Parameters
     ----------
     power : int
-        Soft-thresholding power for blockwiseModules. Default 6.
+        Soft thresholding power for blockwiseModules. Default 6.
     min_features : int
         Minimum number of features per module. Default 20.
     extra_args : dict

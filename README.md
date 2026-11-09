@@ -11,16 +11,16 @@ Network aware stable feature selection via Shapley values and random forests.
 
 `mossyforest` is the Python implementation of the
 [<img src="https://www.r-project.org/logo/Rlogo.png" alt="R" height="16"> mossyforest](https://timothyzshen.github.io/mossyforest/) R package. It is a
-bit-exact replica of the R algorithm (verified — see
+bit-exact replica of the R algorithm (verified, see
 [Parity](#parity-with-the-r-package)). It is recommended to use this package for large
 high dimensional data sets.
 
 It selects a small, stable set of features from high-dimensional, correlated data
 by combining:
 
-1. **Module stratified screening** — recursive feature elimination (RFE) within
+1. **Module stratified screening**: recursive feature elimination (RFE) within
    each correlated module (or WGCNA-derived module).
-2. **Shadow stability selection** — Boruta style subsample selection where each
+2. **Shadow stability selection**: Boruta style subsample selection where each
    feature must beat its own permuted "shadow" across many resamples.
 3. **A single TreeSHAP pass** on the stable set for importance, confidence
    intervals, and a pairwise interaction matrix.
@@ -102,7 +102,7 @@ model.predict(X_new)
 
 ## Parameters
 
-### `screen_control` — Phase 1 (screening)
+### `screen_control`: Phase 1 (screening)
 | param | default | meaning |
 |---|---|---|
 | `drop_fraction` | 0.25 | fraction of features dropped per RFE step |
@@ -111,7 +111,7 @@ model.predict(X_new)
 | `min_ntree` | 500 | minimum trees per forest |
 | `ntree_factor` | 1 | trees = `max(p·factor, min_ntree)` |
 
-### `select_control` — Phase 2 (shadow stability)
+### `select_control`: Phase 2 (shadow stability)
 | param | default | meaning |
 |---|---|---|
 | `shadow_mode` | `"split"` | `"split"` (corr + unassigned pools) or `"within_module"` |
@@ -131,7 +131,7 @@ model.predict(X_new)
 | `blas_threads` | `None` | inner BLAS/OpenMP cap (auto: 1 when parallel) |
 | `shap_backend` | `"shap"` | or `"fasttreeshap"` (Python ≤3.11 only) |
 | `use_numba` | `False` | JIT the mean\|SHAP\| reduction |
-| `screen_cache` | `None` | `True` (memory) / path (disk) — cache Phase 1 for sweeps |
+| `screen_cache` | `None` | `True` (memory) / path (disk): cache Phase 1 for sweeps |
 | `compute_interactions` | `True` | retain RF so interactions compute lazily on access |
 
 ---
@@ -186,7 +186,7 @@ one process on identical data/seed/stack, the two agree exactly:
 
 Two things were required for exactness: matching R's **survivor-column ordering**
 (original-X order), and a shared **per-replicate RNG scheme**. float32 (Python)
-vs float64 (R) is *not* observable — sklearn trees are float32 internally either
+vs float64 (R) is *not* observable; sklearn trees are float32 internally either
 way. Re-verify anytime with `python benchmarks/parity_in_process.py`.
 
 ---

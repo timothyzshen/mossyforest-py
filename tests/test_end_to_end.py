@@ -1,5 +1,5 @@
 """
-End-to-end tests for MossyForest two-phase algorithm.
+End-to-end tests for MossyForest two phase algorithm.
 
 Uses a synthetic block-structured dataset that mimics correlated gene modules.
 Tests cover all shadow_mode / cfRes combinations.
@@ -333,10 +333,10 @@ def test_dataframe_input(block_data):
 def test_corr_module_survivors_beat_noise_in_frequency(block_data):
     """
     Features that survive Phase 1 from signal modules (A, B, C) should have
-    higher mean shadow-stability frequency than survivors from the unassigned pool.
+    higher mean shadow stability frequency than survivors from the unassigned pool.
 
     Within each module, all features are equally driven by the same latent variable,
-    so screening keeps whichever half have the highest SHAP — not necessarily A0/B0/C0.
+    so screening keeps whichever half have the highest SHAP, not necessarily A0/B0/C0.
     We compare ANY corr-module survivor (pool="corr") against noise survivors
     (pool="unassigned") using the stability_data per-pool frequencies.
     """
@@ -381,7 +381,7 @@ def test_dml_classification_uses_regression_on_residual():
     """
     import numpy as np
     from mossyforest.shadow import boruta_shadow_stability
-    from mossyforest.cfres import cross_fit_residuals
+    from mossyforest.select import cross_fit_residuals
     rng = np.random.default_rng(0); n = 300
     z, ind = rng.standard_normal(n), rng.standard_normal(n)
     Xcorr = np.column_stack([z + rng.standard_normal(n) * 0.3 for _ in range(6)])

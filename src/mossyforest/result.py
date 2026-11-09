@@ -1,9 +1,9 @@
 """
-MossyForestResult — the return object from mf() / wmf().
+MossyForestResult: the return object from mf() / wmf().
 
 Matches the R mossy_forest S3 class in structure and methods:
-  - print()          → __repr__ / __str__
-  - predict()        → predict(new_X)
+  - print()          maps to __repr__ / __str__
+  - predict()        maps to predict(new_X)
   - detect_interaction()
   - All plot methods (see plots.py)
 
@@ -27,13 +27,13 @@ class MossyForestResult:
     final_X : pd.DataFrame
         Feature matrix restricted to stable features.
     module_membership : pd.DataFrame
-        Two-column DataFrame: feature_name, module.
+        Two column DataFrame: feature_name, module.
     WGCNA_object : object or None
         Raw PyWGCNA output (wmf only), else None.
     survivor_list : dict
-        Per-module screening survivors {module: DataFrame(features, vims)}.
+        Per module screening survivors {module: DataFrame(features, vims)}.
     selection_list : list of pd.DataFrame
-        Per-pool feature/frequency tables.
+        Per pool feature/frequency tables.
     final_SHAP : pd.DataFrame
         Stable features with mean|SHAP|, 95% CIs, stability frequencies.
         Columns: feature_name, variable_importance, module_membership,
@@ -49,7 +49,7 @@ class MossyForestResult:
     stability_freq : dict
         {feature_name: selection_frequency}
     stability_data : pd.DataFrame or None
-        Per-pool stability curves for plot_stability_elbow().
+        Per pool stability curves for plot_stability_elbow().
         Columns: pool, rank, feature, freq, selected, threshold, elbow_rank.
     """
 
@@ -87,7 +87,7 @@ class MossyForestResult:
         self._interaction_cache = None
         self._interaction_computed = False
 
-    # ── lazy interaction matrix ─────────────────────────────────────────────────
+    # lazy interaction matrix
 
     @property
     def interaction_matrix(self):
@@ -123,7 +123,7 @@ class MossyForestResult:
         self.shap_obj["interaction_matrix"] = self._interaction_cache
         return self._interaction_cache
 
-    # ── print / repr ──────────────────────────────────────────────────────────
+    # print / repr
 
     def __repr__(self) -> str:
         n_stable = len(self.final_SHAP) if self.final_SHAP is not None else 0
@@ -142,7 +142,7 @@ class MossyForestResult:
     def __str__(self) -> str:
         return self.__repr__()
 
-    # ── predict ───────────────────────────────────────────────────────────────
+    # predict
 
     def predict(self, new_X) -> np.ndarray:
         """
@@ -150,12 +150,12 @@ class MossyForestResult:
 
         Parameters
         ----------
-        new_X : pd.DataFrame or array-like
+        new_X : pd.DataFrame or array like
             New observations.
             - pd.DataFrame: columns are matched by name to the stable set.
-            - array-like with the same number of columns as the stable set:
+            - array like with the same number of columns as the stable set:
               used directly.
-            - array-like with more columns than the stable set: raises ValueError;
+            - array like with more columns than the stable set: raises ValueError;
               use a DataFrame or pass MossyForest.predict() which subsets for you.
 
         Returns
@@ -185,7 +185,7 @@ class MossyForestResult:
             new_X = np.asarray(new_X)
         return self.final_rf.predict_proba(new_X)
 
-    # ── detect_interaction ────────────────────────────────────────────────────
+    # detect_interaction
 
     def detect_interaction(
         self,
@@ -203,9 +203,9 @@ class MossyForestResult:
         thresh  : float
             Only pairs above this mean |SHAP interaction| are returned.
         all     : bool
-            If True, return all off-diagonal pairs regardless of thresh.
+            If True, return all off diagonal pairs regardless of thresh.
         verbose : bool
-            Print the significant-pair table.
+            Print the significant pair table.
 
         Returns
         -------

@@ -9,7 +9,7 @@ blocks, and figures are closed after each test to bound memory.
 from __future__ import annotations
 
 import matplotlib
-matplotlib.use("Agg")   # headless — must precede pyplot import
+matplotlib.use("Agg")   # headless, must precede pyplot import
 import matplotlib.pyplot as plt
 
 import numpy as np

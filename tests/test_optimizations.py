@@ -17,7 +17,7 @@ import pandas as pd
 import pytest
 
 from mossyforest import mf, screen_control, select_control
-from mossyforest.threads import resolve_blas_threads
+from mossyforest.utils import resolve_blas_threads
 from mossyforest.shadow import make_shadow_matrix
 
 
@@ -91,7 +91,7 @@ def test_interaction_lazy_then_cached(block_data):
         assert r._interaction_computed is True
         mat2 = r.interaction_matrix          # cached
         if mat1 is not None:
-            assert mat1 is mat2              # same object → cached
+            assert mat1 is mat2              # same object, so cached
             assert mat1.shape == (n_stable, n_stable)
             np.testing.assert_allclose(mat1, mat1.T, atol=1e-10)
             # shap_obj now reflects the computed matrix
@@ -192,8 +192,8 @@ def test_fasttreeshap_missing_raises_clearly(block_data):
 # ── #10 thread helper ─────────────────────────────────────────────────────────
 
 def test_resolve_blas_threads_auto():
-    assert resolve_blas_threads(None, 1) is None     # serial → unrestricted
-    assert resolve_blas_threads(None, 4) == 1        # parallel → cap inner to 1
+    assert resolve_blas_threads(None, 1) is None     # serial, so unrestricted
+    assert resolve_blas_threads(None, 4) == 1        # parallel, so cap inner to 1
     assert resolve_blas_threads(2, 4) == 2           # explicit override wins
     assert resolve_blas_threads(8, 1) == 8
 

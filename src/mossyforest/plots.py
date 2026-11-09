@@ -1,17 +1,19 @@
 """
 Plotting utilities for MossyForestResult.
 
-Python equivalents of all R shapff_plot.R functions:
-  plot_importance()         — bar or beeswarm (shap summary)
-  plot_waterfall()          — SHAP waterfall for one/multiple observations
-  plot_force()              — SHAP force plot
-  plot_stability()          — shadow-stability frequency bar chart
-  plot_stability_elbow()    — per-pool stability curves with elbow
-  plot_potential_interactions() — TreeSHAP interaction heatmap
-  plot_decisions()          — cumulative SHAP decision plot
-  plot_modules()            — module membership distribution
-  plot_elbow()              — SHAP importance scree/elbow plot
-  plot_soft_threshold()     — WGCNA soft-power diagnostic
+Python versions of the R package's plot functions (each has the same name in R),
+plus plot_soft_threshold(), which only exists in the Python package:
+  plot_importance():             bar or beeswarm (shap summary)
+  plot_signed_importance():      importance with the direction of each effect
+  plot_waterfall():              SHAP waterfall for one or more observations
+  plot_force():                  SHAP force plot
+  plot_stability():              shadow stability frequency bar chart
+  plot_stability_elbow():        per pool stability curves with elbow
+  plot_potential_interactions(): TreeSHAP interaction heatmap
+  plot_decisions():              cumulative SHAP decision plot
+  plot_modules():                module membership distribution
+  plot_elbow():                  SHAP importance scree/elbow plot
+  plot_soft_threshold():         WGCNA soft power diagnostic
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 
 
-# ── plot_importance ───────────────────────────────────────────────────────────
+# plot_importance
 
 def plot_importance(
     result,
@@ -37,9 +39,12 @@ def plot_importance(
     ax: plt.Axes | None = None,
 ) -> plt.Axes | None:
     """
-    Feature importance plot — bar or beeswarm.
+    Feature importance plot: bar or beeswarm.
 
-    Matches R's plot_importance.mossy_forest().
+    Ranks the stable features by mean absolute SHAP value. "bar" draws the
+    mean |SHAP| bars, "beeswarm" draws each observation's SHAP value colored by
+    the feature value, and "both" draws the two together.
+    R equivalent: plot_importance().
 
     Parameters
     ----------
@@ -125,7 +130,7 @@ def plot_importance(
         raise ValueError("kind must be 'bar', 'beeswarm', or 'both'")
 
 
-# ── plot_waterfall ────────────────────────────────────────────────────────────
+# plot_waterfall
 
 def plot_waterfall(
     result,
@@ -136,8 +141,10 @@ def plot_waterfall(
     """
     SHAP waterfall plot for one or more observations.
 
-    Matches R's plot_waterfall.mossy_forest().
-    When multiple row_ids are given, SHAP values are averaged.
+    Shows how each feature moves the prediction for one observation up or down
+    from the average prediction. When multiple row_ids are given, SHAP values
+    and feature values are averaged. Row numbers start at 0 here (they start at
+    1 in R). R equivalent: plot_waterfall().
     """
     import shap as _shap
 
@@ -170,12 +177,12 @@ def plot_waterfall(
         feature_names  = list(result.final_X.columns),
     )
     _shap.plots.waterfall(expl, max_display=n_display, show=False)
-    plt.title(f"Waterfall Plot — {label}", fontsize=14)
+    plt.title(f"Waterfall Plot: {label}", fontsize=14)
     plt.tight_layout()
     plt.show()
 
 
-# ── plot_force ────────────────────────────────────────────────────────────────
+# plot_force
 
 def plot_force(
     result,
@@ -186,7 +193,10 @@ def plot_force(
     """
     SHAP force plot for one or more observations.
 
-    Matches R's plot_force.mossy_forest().
+    Shows the features that push one observation's prediction above or below
+    the average prediction as a single horizontal bar. When multiple row_ids are
+    given, SHAP values and feature values are averaged. Row numbers start at 0
+    here (they start at 1 in R). R equivalent: plot_force().
     """
     import shap as _shap
 
@@ -217,23 +227,25 @@ def plot_force(
         matplotlib     = True,
         show           = False,
     )
-    plt.title(f"Force Plot — {label}", fontsize=14)
+    plt.title(f"Force Plot: {label}", fontsize=14)
     plt.tight_layout()
     plt.show()
 
 
-# ── plot_stability ────────────────────────────────────────────────────────────
+# plot_stability
 
 def plot_stability(
     result,
     fill: str = "#3e568a",
-    main: str = "Shadow-Stability Frequencies",
+    main: str = "Shadow Stability Frequencies",
     ax: plt.Axes | None = None,
 ) -> plt.Axes:
     """
-    Horizontal bar chart of shadow-stability selection frequencies.
+    Horizontal bar chart of shadow stability selection frequencies.
 
-    Matches R's plot_stability.mossy_forest().
+    Shows how often each stable feature was selected across the shadow
+    stability subsamples, sorted from most to least frequent.
+    R equivalent: plot_stability().
     """
     freq_dict = result.stability_freq
     if not freq_dict:
@@ -258,7 +270,7 @@ def plot_stability(
     return ax
 
 
-# ── plot_stability_elbow ──────────────────────────────────────────────────────
+# plot_stability_elbow
 
 def plot_stability_elbow(
     result,
@@ -268,12 +280,15 @@ def plot_stability_elbow(
     col_elbow: str      = "#e07b00",
     show_labels: bool   = False,
     ncol: int | None    = None,
-    main: str           = "Shadow-stability selection",
+    main: str           = "Shadow stability selection",
 ) -> plt.Figure:
     """
-    Per-pool stability frequency curves with threshold and elbow lines.
+    Per pool stability frequency curves with threshold and elbow lines.
 
-    Matches R's plot_stability_elbow.mossy_forest().
+    Plots the sorted selection frequencies of each pool (correlated and
+    unassigned), with the stability threshold, the elbow rank where one is
+    used, and the selected features in a different color.
+    R equivalent: plot_stability_elbow().
     """
     sd = result.stability_data
     if sd is None or len(sd) == 0:
@@ -335,13 +350,15 @@ def plot_stability_elbow(
     return fig
 
 
-# ── plot_potential_interactions ───────────────────────────────────────────────
+# plot_potential_interactions
 
 def plot_potential_interactions(result) -> plt.Figure:
     """
     Heatmap of mean absolute TreeSHAP pairwise interaction strengths.
 
-    Matches R's plot_potential_interactions.mossy_forest().
+    Shows the average absolute pairwise TreeSHAP interaction between the stable
+    features. Off diagonal cells are interactions and the diagonal holds the
+    main effects. R equivalent: plot_potential_interactions().
     """
     int_mat = result.interaction_matrix   # lazy: computes + caches on first access
     if int_mat is None:
@@ -377,14 +394,14 @@ def plot_potential_interactions(result) -> plt.Figure:
     ax.set_title("TreeSHAP Interaction Values", fontsize=14)
     ax.set_xlabel(None)
     fig.text(0.5, -0.01,
-             "Off-diagonal: pairwise interactions  |  Diagonal: main effects",
+             "Off diagonal: pairwise interactions  |  Diagonal: main effects",
              ha="center", fontsize=9)
     plt.tight_layout()
     plt.show()
     return fig
 
 
-# ── plot_decisions ────────────────────────────────────────────────────────────
+# plot_decisions
 
 def plot_decisions(
     result,
@@ -397,7 +414,10 @@ def plot_decisions(
     """
     Cumulative SHAP decision plot.
 
-    Matches R's plot_decisions.mossy_forest().
+    Follows the cumulative SHAP contributions of each observation, feature by
+    feature, from the average prediction to its final prediction. Adapted from
+    the decision plot in the Python shap package.
+    R equivalent: plot_decisions().
     """
     if just_shap:
         if not isinstance(result, (np.ndarray, pd.DataFrame)):
@@ -459,7 +479,7 @@ def plot_decisions(
     return fig
 
 
-# ── plot_modules ──────────────────────────────────────────────────────────────
+# plot_modules
 
 def plot_modules(
     result,
@@ -469,9 +489,11 @@ def plot_modules(
     module_labels: pd.DataFrame | None = None,
 ) -> plt.Figure:
     """
-    Stacked bar chart of selected vs not-selected proportion per module.
+    Stacked bar chart of selected vs not selected proportion per module.
 
-    Matches R's plot_modules.mossy_forest().
+    Shows, for each module, the proportion of its features that were selected
+    as stable and the proportion that were not.
+    R equivalent: plot_modules().
     """
     mm = result.module_membership.copy()   # feature_name, module
 
@@ -504,7 +526,7 @@ def plot_modules(
     return fig
 
 
-# ── plot_elbow ────────────────────────────────────────────────────────────────
+# plot_elbow
 
 def plot_elbow(
     result,
@@ -518,7 +540,9 @@ def plot_elbow(
     """
     Scree/elbow plot of mean |SHAP| by stable feature rank.
 
-    Matches R's plot_elbow.mossy_forest().
+    Ranks the stable features by mean |SHAP| and draws the importance curve, so
+    you can see where importance drops off. Points can be colored by module.
+    R equivalent: plot_elbow().
     """
     df = result.final_SHAP.copy()
 
@@ -559,7 +583,7 @@ def plot_elbow(
     return fig
 
 
-# ── plot_signed_importance ────────────────────────────────────────────────────
+# plot_signed_importance
 
 def plot_signed_importance(
     result,
@@ -577,10 +601,11 @@ def plot_signed_importance(
 
     Magnitude is mean|SHAP|; sign is the global effect direction (from the
     Spearman correlation between each feature's value and its SHAP value).
-    Bars to the right increase the outcome, to the left decrease it. Features
-    whose direction is ambiguous (non-monotone: |Spearman| < 0.1) are greyed
-    out — for those a single direction is misleading; use a SHAP dependence
-    plot instead.
+    Bars to the right increase the average predicted outcome, and bars to the
+    left decrease it. Features whose direction is ambiguous (nonmonotone:
+    |Spearman| < 0.1) are greyed out, because a single direction is misleading
+    for them; use a SHAP dependence plot instead.
+    R equivalent: plot_signed_importance().
     """
     df = result.final_SHAP.copy()
     if "signed_importance" not in df.columns or len(df) == 0:
@@ -614,14 +639,14 @@ def plot_signed_importance(
     ax.legend(handles=[
         Patch(color=pos_color, label=f"{pos_label} (+)"),
         Patch(color=neg_color, label=f"{neg_label} (−)"),
-        Patch(color=ambiguous_color, label=f"{ambiguous_label} (non-monotone)"),
+        Patch(color=ambiguous_color, label=f"{ambiguous_label} (nonmonotone)"),
     ], fontsize=8, loc="lower right")
     plt.tight_layout()
     plt.show()
     return ax
 
 
-# ── plot_soft_threshold ───────────────────────────────────────────────────────
+# plot_soft_threshold
 
 def plot_soft_threshold(
     datout: pd.DataFrame,
@@ -629,10 +654,13 @@ def plot_soft_threshold(
     r2_threshold: float = 0.85,
 ) -> plt.Figure:
     """
-    Two-panel WGCNA soft-threshold diagnostic.
+    Two panel WGCNA soft threshold diagnostic.
 
-    Matches R's scale-free topology + mean connectivity plot.
-    datout must have columns "Power", "SFT.R.sq", "mean.k."
+    The left panel shows the scale free topology fit (R squared) against the
+    soft threshold power, with a line at r2_threshold. The right panel shows the
+    mean connectivity. Both mark the chosen power. This is the diagnostic that
+    WGCNA's pickSoftThreshold produces; the R package has no plot function for
+    it. datout must have columns "Power", "SFT.R.sq", "mean.k."
     """
     powers  = datout["Power"].tolist()
     r2      = datout["SFT.R.sq"].tolist()
@@ -645,15 +673,15 @@ def plot_soft_threshold(
                 label=f"R² = {r2_threshold}")
     ax1.axvline(chosen_power, color="grey", linestyle=":", linewidth=1,
                 label=f"Chosen β = {chosen_power}")
-    ax1.set_xlabel("Soft-threshold power (β)")
-    ax1.set_ylabel("Scale-free topology fit (R²)")
-    ax1.set_title("Scale-free topology fit")
+    ax1.set_xlabel("Soft threshold power (β)")
+    ax1.set_ylabel("Scale free topology fit (R²)")
+    ax1.set_title("Scale free topology fit")
     ax1.legend(fontsize=9)
 
     ax2.plot(powers, mean_k, "o-", color="#DD8452")
     ax2.axvline(chosen_power, color="grey", linestyle=":", linewidth=1,
                 label=f"Chosen β = {chosen_power}")
-    ax2.set_xlabel("Soft-threshold power (β)")
+    ax2.set_xlabel("Soft threshold power (β)")
     ax2.set_ylabel("Mean connectivity")
     ax2.set_title("Mean connectivity")
     ax2.legend(fontsize=9)

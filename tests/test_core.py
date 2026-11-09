@@ -1,7 +1,7 @@
 """
 Unit tests for MossyForest core components.
 
-Tests are written against the new two-phase API that exactly mirrors
+Tests are written against the new two phase API that exactly mirrors
 the R package's mf() / mf_python_backend.py.
 """
 
@@ -23,7 +23,7 @@ from mossyforest.shadow import (
     apply_stable_threshold,
     find_elbow_idx,
 )
-from mossyforest.cfres import cross_fit_residuals
+from mossyforest.select import cross_fit_residuals
 from mossyforest.rfe import rfe_loop, _compute_mtry, _compute_ntree
 
 

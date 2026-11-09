@@ -1,16 +1,16 @@
 """
-MossyForest — main user-facing API.
+MossyForest: main functions.
 
-Primary functions (matching R's API):
-  mf(X, y, module_membership, ...)    — two-phase feature selection
-  wmf(X, y, WGCNA_params, ...)        — same but runs WGCNA first
+Primary functions (matching with R):
+  mf(X, y, module_membership, ...):    two phase feature selection
+  wmf(X, y, WGCNA_params, ...):        same but runs WGCNA first
 
-sklearn-compatible estimator:
-  MossyForest(...)                  — wraps mf() for pipeline use
+sklearn compatible estimator:
+  MossyForest(...):                  wraps mf() for pipeline use
 
-Algorithm (matching R's mf() / mf_python_backend.py):
-  Phase 1 (Screen):    per-module RFE on the full dataset
-  Phase 2 (Select):    shadow-stability selection on survivors
+Algorithm:
+  Phase 1 (Screen):    per module RFE on the full dataset
+  Phase 2 (Select):    shadow stability selection on survivors
   Phase 3 (Final RF):  RF on the stable set for prediction
 """
 
@@ -25,15 +25,14 @@ from sklearn.utils.validation import check_is_fitted
 
 from .parameters import screen_control, select_control, WGCNA_control
 from .rfe import _build_rf, _compute_mtry, _compute_ntree, _map_labels, shap_full_signed
-from .screen import run_screen_rfe
+from .screen import run_screen_rfe, compute_screen_key, load_cached, store_cached
 from .select import run_select_rfe
 from .result import MossyForestResult
 from .modules import detect_modules
-from . import cache
-from .cache import compute_screen_key, load_cached, store_cached
+from . import screen as _screen_mod
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
+# helpers
 
 def _parse_module_membership(module_membership, feature_names: list) -> dict:
     """
@@ -48,7 +47,7 @@ def _parse_module_membership(module_membership, feature_names: list) -> dict:
         return {str(k): str(v) for k, v in module_membership.items()}
     if isinstance(module_membership, pd.Series):
         return {str(k): str(v) for k, v in module_membership.items()}
-    # list / ndarray — align with feature_names
+    # list / ndarray: align with feature_names
     mm = list(module_membership)
     if len(mm) != len(feature_names):
         raise ValueError(
@@ -89,17 +88,17 @@ def _build_stability_data(pool_stability: list) -> pd.DataFrame | None:
 def _shap_direction(feature_values: np.ndarray, shap_matrix: np.ndarray,
                     ambiguity_thresh: float = 0.1) -> dict:
     """
-    Global effect direction per feature from the feature-value ↔ SHAP relationship.
+    Global effect direction per feature from the feature value and SHAP relationship.
 
-    Because mean signed SHAP ≈ 0 (contributions cancel), direction lives in HOW
+    Because mean signed SHAP ≈ 0 (contributions cancel), direction is defined in how
     a feature's SHAP tracks its value. We use the Spearman correlation between
-    x_j and phi_j (rank-based → captures monotone direction without assuming
+    x_j and phi_j (rank based, captures monotone direction without assuming
     linearity):
 
         dir_corr_j = spearman(x_j, phi_j)
         direction_j = sign(dir_corr_j)          (+1 promotes, -1 suppresses)
-        ambiguous_j = |dir_corr_j| < ambiguity_thresh   (non-monotone / unclear;
-                       a single direction is misleading — use a dependence plot)
+        ambiguous_j = |dir_corr_j| < ambiguity_thresh   (nonmonotone / unclear;
+                       a single direction is misleading; use a dependence plot)
 
     Returns arrays: dir_corr, direction, ambiguous.
     """
@@ -108,7 +107,7 @@ def _shap_direction(feature_values: np.ndarray, shap_matrix: np.ndarray,
     dir_corr = np.zeros(p, dtype=np.float64)
     for j in range(p):
         xj, sj = feature_values[:, j], shap_matrix[:, j]
-        if np.ptp(xj) == 0 or np.ptp(sj) == 0:   # constant → undefined
+        if np.ptp(xj) == 0 or np.ptp(sj) == 0:   # constant, so undefined
             dir_corr[j] = 0.0
             continue
         rho, _ = spearmanr(xj, sj)
@@ -153,18 +152,18 @@ def _build_final_shap_df(
         df["ci_upper_signed"]  = np.round(mean_signed + 1.96 * se_signed, 4)
         df["stability_freq"]   = np.round(stab_freq, 4)
 
-        # ── global effect direction (feature-value ↔ SHAP correlation) ────────
+        # global effect direction (feature value and SHAP correlation)
         d = _shap_direction(feature_values, shap_matrix)
         df["direction"]         = d["direction"]                    # +1 / -1 / 0
         df["dir_corr"]          = np.round(d["dir_corr"], 4)        # Spearman ρ
-        # signed importance = direction × magnitude (for a diverging-bar report)
+        # signed importance = direction × magnitude (for a diverging bar report)
         df["signed_importance"] = np.round(d["direction"] * mean_abs, 4)
-        df["direction_ambiguous"] = d["ambiguous"]                 # non-monotone flag
+        df["direction_ambiguous"] = d["ambiguous"]                 # nonmonotone flag
 
     return df.reset_index(drop=True)
 
 
-# ── mf() — main two-phase function ───────────────────────────────────────────
+# mf(): main two phase function
 
 def mf(
     X,
@@ -191,10 +190,10 @@ def mf(
 
     Parameters
     ----------
-    X : pd.DataFrame or array-like (n, p)
+    X : pd.DataFrame or array like (n, p)
         Feature matrix. Column names are used when X is a DataFrame.
-    y : array-like (n,)
-        Outcome. Integer/bool → classification; float → regression.
+    y : array like (n,)
+        Outcome. Integer/bool is classification; float is regression.
     module_membership : dict, list, ndarray, or pd.Series
         Module label per feature. dict: {feature: label};
         list/array: aligned with X columns; Series: index = feature names.
@@ -205,17 +204,17 @@ def mf(
     final_ntree : int
         Trees in the final prediction RF. Default 500.
     nodesize : int or None
-        Min terminal node size. None → 1 for classification, 5 for regression.
+        Min terminal node size. None means 1 for classification, 5 for regression.
     num_processors : int
         Parallel workers for RF fitting. Default 1.
     max_modsize : int
-        Module size above which blockwise pre-reduction is applied. Default 5000.
+        Module size above which blockwise pre reduction is applied. Default 5000.
     verbose : int
         0 = silent; 1 = progress messages; 2 = detailed. Default 1.
     seed : int or None
         RNG seed. None = random.
     compute_interactions : bool
-        Retain the single-shot RF so the TreeSHAP interaction matrix can be
+        Retain the single shot RF so the TreeSHAP interaction matrix can be
         computed lazily on first access (via result.interaction_matrix /
         detect_interaction / plot_potential_interactions). False disables
         interactions entirely and frees the retained RF. Default True.
@@ -225,20 +224,20 @@ def mf(
         numpy<2 / shap<0.46 (fasttreeshap's dependency pins have no Python
         3.12+ wheels). On a modern stack keep "shap".
     use_numba : bool
-        Use a Numba-JIT mean|SHAP| reduction when Numba is installed.
+        Use a Numba JIT mean|SHAP| reduction when Numba is installed.
         Default False.
     blas_threads : int or None
         Inner BLAS/OpenMP thread cap during parallel sections. None (default)
         = auto: capped to 1 when num_processors > 1, unrestricted otherwise.
     screen_cache : None, bool, or str/Path
-        Cache Phase-1 (screening) results, which depend only on X, y, module
-        membership, screen_params, nodesize, seed, max_modsize, and shap_backend
-        — NOT on select_params. Lets tuning / CV runs that vary only
+        Cache Phase 1 (screening) results, which depend only on X, y, module
+        membership, screen_params, nodesize, seed, max_modsize, and shap_backend,
+        NOT on select_params. Lets tuning / CV runs that vary only
         select_params skip screening.
         None/False (default) = no caching;
-        True = in-process memory cache (this Python session);
-        str/Path = on-disk cache directory (persists across sessions).
-        A cache hit returns byte-identical survivors.
+        True = in process memory cache (this Python session);
+        str/Path = on disk cache directory (persists across sessions).
+        A cache hit returns byte identical survivors.
 
     Returns
     -------
@@ -253,7 +252,7 @@ def mf(
     if seed is None:
         seed = int(time.time()) % (2**31 - 1)
 
-    # ── validate inputs ───────────────────────────────────────────────────────
+    # validate inputs
     if isinstance(X, pd.DataFrame):
         feature_names = list(X.columns)
         X_arr = np.ascontiguousarray(X.values, dtype=np.float32)
@@ -290,7 +289,7 @@ def mf(
     runtimes = {"Screen": np.nan, "Selection": np.nan, "Final_RF": np.nan}
 
     # ══════════════════════════════════════════════════════════════════════════
-    # Phase 1: Screening RFE  (optionally cached — independent of select_params)
+    # Phase 1: Screening RFE  (optionally cached, independent of select_params)
     # ══════════════════════════════════════════════════════════════════════════
     if verbose >= 1:
         print("Screening ...")
@@ -306,13 +305,13 @@ def mf(
         )
         screen_result = load_cached(cache_key, screen_cache)
         if screen_result is not None:
-            cache.STATS["hits"] += 1
+            _screen_mod.STATS["hits"] += 1
             if verbose >= 1:
-                print("  (screening cache hit — skipping Phase 1)")
+                print("  (screening cache hit, skipping Phase 1)")
 
     if screen_result is None:
         if screen_cache:
-            cache.STATS["misses"] += 1
+            _screen_mod.STATS["misses"] += 1
         screen_result = run_screen_rfe(
             X_mat              = X_arr,
             y                  = y_arr,
@@ -335,7 +334,7 @@ def mf(
 
     runtimes["Screen"] = time.time() - t0
 
-    # ── assemble survivor pool ────────────────────────────────────────────────
+    # assemble survivor pool
     survivor_list: dict = {}
     survivors_flat: list = []
     surv_to_mod: dict   = {}
@@ -365,7 +364,7 @@ def mf(
         print(f"Selecting stable features ... ({len(survivors_flat)} candidates)")
 
     # ══════════════════════════════════════════════════════════════════════════
-    # Phase 2: Shadow-stability selection
+    # Phase 2: Shadow stability selection
     # ══════════════════════════════════════════════════════════════════════════
     t0 = time.time()
     select_result = run_select_rfe(
@@ -393,7 +392,7 @@ def mf(
     shap_matrix     = np.asarray(select_result["shap_matrix"])
     pool_stability  = select_result.get("pool_stability", [])
 
-    # ── lazy-interaction ingredients (interaction matrix computed on demand) ──
+    # lazy interaction ingredients (interaction matrix computed on demand)
     interaction_ingredients = {
         "rf_stable":      select_result.get("_rf_stable"),
         "X_stable":       select_result.get("_X_stable"),
@@ -406,13 +405,13 @@ def mf(
     if verbose >= 1:
         print(f"Stable features: {n_stable}")
 
-    # ── stability_freq dict (only stable features) ────────────────────────────
+    # stability_freq dict (only stable features)
     stability_freq_dict = dict(zip(stable_features, stab_freq))
 
-    # ── stability_data DataFrame ──────────────────────────────────────────────
+    # stability_data DataFrame
     stability_data = _build_stability_data(pool_stability)
 
-    # ── selection_list ────────────────────────────────────────────────────────
+    # selection_list
     selection_list = [
         pd.DataFrame({
             "feature_name":        select_result["selection_list_feats"][i],
@@ -421,7 +420,7 @@ def mf(
         for i in range(len(select_result["selection_list_feats"]))
     ]
 
-    # ── final_SHAP DataFrame (with CIs + direction) ───────────────────────────
+    # final_SHAP DataFrame (with CIs + direction)
     # feature values aligned with the SHAP matrix columns (for the direction test)
     stable_value_mat = (
         X_arr[:, [feature_names.index(f) for f in stable_features]]
@@ -479,13 +478,13 @@ def mf(
 
     runtimes["Final_RF"] = time.time() - t0
 
-    # ── shap_obj (signed matrix; interaction matrix filled lazily) ────────────
+    # shap_obj (signed matrix; interaction matrix filled lazily)
     shap_obj = {
         "shapley_values":    shap_matrix,
         "interaction_matrix": None,   # populated on first access via result property
     }
 
-    # ── module_membership DataFrame ───────────────────────────────────────────
+    # module_membership DataFrame
     module_membership_df = pd.DataFrame({
         "feature_name": feature_names,
         "module":       module_assign,
@@ -511,7 +510,7 @@ def mf(
     )
 
 
-# ── wmf() — mf() with integrated WGCNA module detection ──────────────────────
+# wmf(): mf() with integrated WGCNA module detection
 
 def wmf(
     X,
@@ -602,14 +601,14 @@ def wmf(
     return result
 
 
-# ── MossyForest — sklearn-compatible estimator ──────────────────────────────
+# MossyForest: sklearn compatible estimator
 
 class MossyForest(BaseEstimator, TransformerMixin):
     """
-    Sklearn-compatible wrapper around mf().
+    Sklearn compatible wrapper around mf().
 
     Suitable for use in sklearn pipelines. Module membership must be supplied
-    at fit() time because it is data-dependent (not a hyperparameter).
+    at fit() time because it is data dependent (not a hyperparameter).
 
     Parameters
     ----------
@@ -620,11 +619,11 @@ class MossyForest(BaseEstimator, TransformerMixin):
     final_ntree : int
         Trees in the prediction RF. Default 500.
     nodesize : int or None
-        Min terminal node size. None → 1 (classification) / 5 (regression).
+        Min terminal node size. None is 1 (classification) / 5 (regression).
     n_jobs : int
         Parallel workers. Default 1.
     max_modsize : int
-        Blockwise pre-reduction trigger. Default 5000.
+        Blockwise pre reduction trigger. Default 5000.
     verbose : int
         Verbosity level 0/1/2. Default 1.
     random_state : int or None
@@ -634,7 +633,7 @@ class MossyForest(BaseEstimator, TransformerMixin):
     shap_backend : str
         "shap" (default) or "fasttreeshap".
     use_numba : bool
-        Use Numba-JIT mean|SHAP| reduction when available. Default False.
+        Use Numba JIT mean|SHAP| reduction when available. Default False.
     blas_threads : int or None
         Inner thread cap during parallel sections. None = auto. Default None.
     """
@@ -671,12 +670,12 @@ class MossyForest(BaseEstimator, TransformerMixin):
 
     def fit(self, X, y, module_membership=None) -> "MossyForest":
         """
-        Run the two-phase algorithm.
+        Run the two phase algorithm.
 
         Parameters
         ----------
-        X : array-like or pd.DataFrame
-        y : array-like
+        X : array like or pd.DataFrame
+        y : array like
         module_membership : dict, list, ndarray, or pd.Series
             Module assignment per feature. Required.
         """
@@ -705,7 +704,7 @@ class MossyForest(BaseEstimator, TransformerMixin):
             screen_cache         = self.screen_cache,
         )
 
-        # sklearn-standard attributes
+        # sklearn standard attributes
         self.selected_features_  = list(self.result_.final_X.columns)
         self.selected_indices_   = self._get_selected_indices(X)
         self.selection_freq_     = self.result_.stability_freq
