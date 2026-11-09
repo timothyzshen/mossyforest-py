@@ -1,0 +1,17 @@
+.md-tabs__link[href="https://timothyzshen.github.io/mossyforest/"] {
+  color: #ffffff;
+  background-color: #276dc3;
+  border-radius: 0.2rem;
+  padding: 0.1rem 0.5rem;
+  opacity: 1;
+}
+
+.md-tabs__link[href="https://timothyzshen.github.io/mossyforest/"]:hover {
+  background-color: #1f5aa3;
+}
+
+.md-typeset img[alt="R"] {
+  height: 1.1em;
+  width: auto;
+  vertical-align: text-bottom;
+}
